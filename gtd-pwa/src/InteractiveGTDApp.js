@@ -2,15 +2,17 @@ import React, { useState } from 'react';
 import { db } from './firebase';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, ChevronDown } from 'lucide-react';
+import TaskDetailEditor from './EnhancedComponents';
 
 // Interactive Task Item Component
-const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0 }) => {
+const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(task.title);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showAddChild, setShowAddChild] = useState(false);
   const [newChildTitle, setNewChildTitle] = useState('');
   const [isHovered, setIsHovered] = useState(false);
+  const [isDetailEditorOpen, setIsDetailEditorOpen] = useState(false);
 
   const hasChildren = task.children && task.children.length > 0;
   const isCompleted = task.status === 'done';
@@ -34,8 +36,8 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0 }) => {
     }
   };
 
-  // Save edited title
-  const handleSaveEdit = async () => {
+  // Save edited title (for inline editing)
+  const handleSaveTitle = async () => {
     if (editedTitle.trim() === '') {
       alert('Task title cannot be empty');
       return;
@@ -52,6 +54,19 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0 }) => {
     } catch (error) {
       console.error('Error updating task:', error);
       alert('Failed to update task');
+    }
+  };
+
+  // Save from detail editor
+  const handleSaveFromEditor = async (updates) => {
+    try {
+      const taskRef = doc(db, 'tasks', task.id);
+      await updateDoc(taskRef, updates);
+      setIsDetailEditorOpen(false);
+      onUpdate?.();
+    } catch (error) {
+      console.error('Error updating task from editor:', error);
+      alert('Failed to save changes');
     }
   };
 
@@ -133,147 +148,158 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0 }) => {
   };
 
   return (
-    <div 
-      className="task-item-container"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      style={{ marginLeft: `${level * 24}px` }}
-    >
-      <div className={`task-item ${isCompleted ? 'completed' : ''}`}>
-        {/* Drag Handle */}
-        <div className="drag-handle" style={{ opacity: isHovered ? 1 : 0.3 }}>
-          <GripVertical size={16} />
-        </div>
+    <>
+      <div 
+        className="task-item-container"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{ marginLeft: `${level * 24}px` }}
+      >
+        <div className={`task-item ${isCompleted ? 'completed' : ''}`}>
+          {/* Drag Handle */}
+          <div className="drag-handle" style={{ opacity: isHovered ? 1 : 0.3 }}>
+            <GripVertical size={16} />
+          </div>
 
-        {/* Collapse/Expand Toggle */}
-        {hasChildren && (
-          <button
-            className="collapse-toggle"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-          >
-            {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-          </button>
-        )}
-        {!hasChildren && <div style={{ width: '16px' }} />}
-
-        {/* Completion Checkbox */}
-        <button
-          className="completion-checkbox"
-          onClick={handleToggleComplete}
-          title={isCompleted ? 'Mark incomplete' : 'Mark complete'}
-        >
-          {isCompleted ? (
-            <CheckCircle size={20} className="text-green-600" />
-          ) : (
-            <Circle size={20} className="text-gray-400" />
-          )}
-        </button>
-
-        {/* Task Title (Editable) */}
-        {isEditing ? (
-          <input
-            type="text"
-            value={editedTitle}
-            onChange={(e) => setEditedTitle(e.target.value)}
-            onBlur={handleSaveEdit}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') handleSaveEdit();
-              if (e.key === 'Escape') {
-                setEditedTitle(task.title);
-                setIsEditing(false);
-              }
-            }}
-            autoFocus
-            className="task-title-input"
-          />
-        ) : (
-          <span
-            className={`task-title ${isCompleted ? 'line-through' : ''}`}
-            onDoubleClick={() => setIsEditing(true)}
-          >
-            {task.title}
-          </span>
-        )}
-
-        {/* Task Metadata */}
-        <div className="task-metadata" style={{ opacity: isHovered ? 1 : 0.5 }}>
-          {task.context && (
-            <span className="task-context">{task.context}</span>
-          )}
-          {task.timeEstimate && (
-            <span className="task-time">{task.timeEstimate}m</span>
-          )}
+          {/* Collapse/Expand Toggle */}
           {hasChildren && (
-            <span className="task-children">{task.children.length} subtasks</span>
+            <button
+              className="collapse-toggle"
+              onClick={() => setIsCollapsed(!isCollapsed)}
+            >
+              {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+            </button>
+          )}
+          {!hasChildren && <div style={{ width: '16px' }} />}
+
+          {/* Completion Checkbox */}
+          <button
+            className="completion-checkbox"
+            onClick={handleToggleComplete}
+            title={isCompleted ? 'Mark incomplete' : 'Mark complete'}
+          >
+            {isCompleted ? (
+              <CheckCircle size={20} className="text-green-600" />
+            ) : (
+              <Circle size={20} className="text-gray-400" />
+            )}
+          </button>
+
+          {/* Task Title (Editable) */}
+          {isEditing ? (
+            <input
+              type="text"
+              value={editedTitle}
+              onChange={(e) => setEditedTitle(e.target.value)}
+              onBlur={handleSaveTitle}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') handleSaveTitle();
+                if (e.key === 'Escape') {
+                  setEditedTitle(task.title);
+                  setIsEditing(false);
+                }
+              }}
+              autoFocus
+              className="task-title-input"
+            />
+          ) : (
+            <span
+              className={`task-title ${isCompleted ? 'line-through' : ''}`}
+              onDoubleClick={() => setIsEditing(true)}
+            >
+              {task.title}
+            </span>
+          )}
+
+          {/* Task Metadata */}
+          <div className="task-metadata" style={{ opacity: isHovered ? 1 : 0.5 }}>
+            {task.context && (
+              <span className="task-context">{task.context}</span>
+            )}
+            {task.timeEstimate && (
+              <span className="task-time">{task.timeEstimate}m</span>
+            )}
+            {hasChildren && (
+              <span className="task-children">{task.children.length} subtasks</span>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          {isHovered && !isEditing && (
+            <div className="task-actions">
+              <button
+                onClick={() => setIsDetailEditorOpen(true)}
+                className="action-btn"
+                title="Edit task details"
+              >
+                <Edit2 size={14} />
+              </button>
+              <button
+                onClick={() => setShowAddChild(!showAddChild)}
+                className="action-btn"
+                title="Add subtask"
+              >
+                <Plus size={14} />
+              </button>
+              <button
+                onClick={handleDelete}
+                className="action-btn delete-btn"
+                title="Delete task"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
           )}
         </div>
 
-        {/* Action Buttons */}
-        {isHovered && !isEditing && (
-          <div className="task-actions">
-            <button
-              onClick={() => setIsEditing(true)}
-              className="action-btn"
-              title="Edit task"
-            >
-              <Edit2 size={14} />
-            </button>
-            <button
-              onClick={() => setShowAddChild(!showAddChild)}
-              className="action-btn"
-              title="Add subtask"
-            >
-              <Plus size={14} />
-            </button>
-            <button
-              onClick={handleDelete}
-              className="action-btn delete-btn"
-              title="Delete task"
-            >
-              <Trash2 size={14} />
-            </button>
+        {/* Add Child Input */}
+        {showAddChild && (
+          <div className="add-child-container" style={{ marginLeft: '40px', marginTop: '8px' }}>
+            <input
+              type="text"
+              value={newChildTitle}
+              onChange={(e) => setNewChildTitle(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') handleAddChild();
+                if (e.key === 'Escape') {
+                  setNewChildTitle('');
+                  setShowAddChild(false);
+                }
+              }}
+              placeholder="New subtask..."
+              autoFocus
+              className="add-child-input"
+            />
+            <button onClick={handleAddChild} className="add-child-btn">Add</button>
+            <button onClick={() => setShowAddChild(false)} className="cancel-btn">Cancel</button>
+          </div>
+        )}
+
+        {/* Render Children (if not collapsed) */}
+        {hasChildren && !isCollapsed && (
+          <div className="task-children-container">
+            {task.children.map(child => (
+              <InteractiveTaskItem
+                key={child.id}
+                task={child}
+                userId={userId}
+                onUpdate={onUpdate}
+                level={level + 1}
+                allContexts={allContexts}
+              />
+            ))}
           </div>
         )}
       </div>
-
-      {/* Add Child Input */}
-      {showAddChild && (
-        <div className="add-child-container" style={{ marginLeft: '40px', marginTop: '8px' }}>
-          <input
-            type="text"
-            value={newChildTitle}
-            onChange={(e) => setNewChildTitle(e.target.value)}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') handleAddChild();
-              if (e.key === 'Escape') {
-                setNewChildTitle('');
-                setShowAddChild(false);
-              }
-            }}
-            placeholder="New subtask..."
-            autoFocus
-            className="add-child-input"
-          />
-          <button onClick={handleAddChild} className="add-child-btn">Add</button>
-          <button onClick={() => setShowAddChild(false)} className="cancel-btn">Cancel</button>
-        </div>
+      {isDetailEditorOpen && (
+        <TaskDetailEditor
+          task={task}
+          onClose={() => setIsDetailEditorOpen(false)}
+          onSave={handleSaveFromEditor}
+          allContexts={allContexts}
+        />
       )}
-
-      {/* Render Children (if not collapsed) */}
-      {hasChildren && !isCollapsed && (
-        <div className="task-children-container">
-          {task.children.map(child => (
-            <InteractiveTaskItem
-              key={child.id}
-              task={child}
-              userId={userId}
-              onUpdate={onUpdate}
-              level={level + 1}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+    </>
   );
 };
 
@@ -394,7 +420,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
     return Array.from(contexts).sort();
   };
 
-  const contexts = getUniqueContexts(tasks);
+  const allContexts = getUniqueContexts(tasks);
 
   // Filter tasks
   const filterTasks = (taskList) => {
@@ -469,14 +495,14 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           </button>
         </div>
 
-        {contexts.length > 0 && (
+        {allContexts.length > 0 && (
           <select
             value={selectedContext || ''}
             onChange={(e) => setSelectedContext(e.target.value || null)}
             className="context-select"
           >
             <option value="">All Contexts</option>
-            {contexts.map(ctx => (
+            {allContexts.map(ctx => (
               <option key={ctx} value={ctx}>{ctx}</option>
             ))}
           </select>
@@ -497,6 +523,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
               task={task}
               userId={user.uid}
               onUpdate={onUpdate}
+              allContexts={allContexts}
             />
           ))
         )}
@@ -738,7 +765,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
         }
 
         .detail-input {
-          padding: 6px 12px;
+          padding: 6px 16px;
           border: 1px solid #d1d5db;
           border-radius: 4px;
           font-size: 14px;
