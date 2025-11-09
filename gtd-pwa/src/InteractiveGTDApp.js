@@ -5,7 +5,7 @@ import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, C
 import TaskDetailEditor from './EnhancedComponents';
 
 // Interactive Task Item Component
-const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts }) => {
+const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, allTasks }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(task.title);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -286,6 +286,7 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts })
                 onUpdate={onUpdate}
                 level={level + 1}
                 allContexts={allContexts}
+                allTasks={allTasks}
               />
             ))}
           </div>
@@ -297,6 +298,7 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts })
           onClose={() => setIsDetailEditorOpen(false)}
           onSave={handleSaveFromEditor}
           allContexts={allContexts}
+          allTasks={allTasks}
         />
       )}
     </>
@@ -304,7 +306,7 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts })
 };
 
 // Quick Add Task Component
-const QuickAddTask = ({ userId, onAdd, parentId = null, level = 0 }) => {
+const QuickAddTask = ({ userId, onAdd, parentId = null, level = 0, allContexts }) => {
   const [title, setTitle] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
   const [context, setContext] = useState('');
@@ -375,7 +377,13 @@ const QuickAddTask = ({ userId, onAdd, parentId = null, level = 0 }) => {
             onChange={(e) => setContext(e.target.value)}
             placeholder="Context (e.g., @home)"
             className="detail-input"
+            list="context-list"
           />
+          <datalist id="context-list">
+            {allContexts.map(ctx => (
+              <option key={ctx} value={ctx} />
+            ))}
+          </datalist>
           <input
             type="number"
             value={timeEstimate}
@@ -510,7 +518,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
       </div>
 
       {/* Quick Add */}
-      <QuickAddTask userId={user.uid} onAdd={onUpdate} />
+      <QuickAddTask userId={user.uid} onAdd={onUpdate} allContexts={allContexts} />
 
       {/* Task List */}
       <div className="task-list">
@@ -524,6 +532,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
               userId={user.uid}
               onUpdate={onUpdate}
               allContexts={allContexts}
+              allTasks={tasks} // Pass all tasks down
             />
           ))
         )}
