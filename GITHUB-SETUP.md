@@ -77,7 +77,7 @@ To find these values:
 
 Example values (yours will be different):
 ```
-FIREBASE_API_KEY: AIzaSyAnVPp7U4LhvFrKxAyKVfjXEN-_Q0NXaEo
+FIREBASE_API_KEY: <YOUR_FIREBASE_API_KEY>
 FIREBASE_AUTH_DOMAIN: personal-gtd-ea76d.firebaseapp.com
 FIREBASE_PROJECT_ID: personal-gtd-ea76d
 FIREBASE_STORAGE_BUCKET: personal-gtd-ea76d.firebasestorage.app

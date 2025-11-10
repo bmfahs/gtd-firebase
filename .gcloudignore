@@ -1,0 +1,12 @@
+# This file specifies files that are not to be uploaded to Google Cloud.
+
+.gcloudignore
+.git
+.gitignore
+.env
+/node_modules
+/venv
+__pycache__/
+*.pyc
+*.log
+*.swp
