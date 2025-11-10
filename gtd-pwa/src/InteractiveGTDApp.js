@@ -3,6 +3,7 @@ import { db } from './firebase';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, ChevronDown } from 'lucide-react';
 import TaskDetailEditor from './EnhancedComponents';
+import VoiceInterface from './components/VoiceInterface'; // Moved to top
 
 // Interactive Task Item Component
 const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, allTasks }) => {
@@ -462,6 +463,56 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
 
   const filteredTasks = filterTasks(tasks);
 
+  const handleTaskUpdate = async (update) => {
+    console.log('Received task update from VoiceInterface:', update);
+
+    try {
+      switch (update.type) {
+        case 'add':
+          await addDoc(collection(db, 'tasks'), {
+            ...update.data,
+            userId: user.uid,
+            createdDate: serverTimestamp(),
+            modifiedDate: serverTimestamp(),
+          });
+          break;
+        case 'update':
+          {
+            const { taskId, ...updates } = update.data;
+            const taskRef = doc(db, 'tasks', taskId);
+            await updateDoc(taskRef, {
+              ...updates,
+              modifiedDate: serverTimestamp(),
+            });
+          }
+          break;
+        case 'complete':
+          {
+            const { taskId } = update.data;
+            const taskRef = doc(db, 'tasks', taskId);
+            await updateDoc(taskRef, {
+              status: 'done',
+              completedDate: new Date(),
+              modifiedDate: serverTimestamp(),
+            });
+          }
+          break;
+        case 'delete':
+          {
+            const { taskId } = update.data;
+            await deleteDoc(doc(db, 'tasks', taskId));
+          }
+          break;
+        default:
+          console.warn('Unknown task update type:', update.type);
+      }
+      onUpdate(); // Trigger a general update
+    } catch (error) {
+      console.error('Error processing voice command action:', error);
+      // Optionally, provide user feedback about the error
+    }
+  };
+
   return (
     <div className="gtd-app">
       {/* Header */}
@@ -537,6 +588,9 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           ))
         )}
       </div>
+
+      {/* Voice Interface */}
+      <VoiceInterface user={user} tasks={tasks} onTaskUpdate={handleTaskUpdate} />
 
       <style jsx>{`
         .gtd-app {

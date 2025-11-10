@@ -1,30 +1,30 @@
-const functions = require('firebase-functions');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
+const { onCall, onRequest } = require('firebase-functions/v2/https');
 const admin = require('firebase-admin');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const textToSpeech = require('@google-cloud/text-to-speech');
 const { Storage } = require('@google-cloud/storage');
+const cors = require('cors')({origin: true});
+const { defineString } = require('firebase-functions/params');
 
 // Initialize Firebase Admin
 admin.initializeApp();
 
-// Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(
-  process.env.GOOGLE_AI_API_KEY || functions.config().google?.key
-);
+const GOOGLE_AI_API_KEY = defineString('GTD_GOOGLE_AI_API_KEY');
 
 const ttsClient = new textToSpeech.TextToSpeechClient();
 const storage = new Storage();
 
-// ============================================================================
+// ============================================================================ 
 // AI AGENT FUNCTIONS
-// ============================================================================
+// ============================================================================ 
 
 /**
  * Analyze a task and provide AI-powered suggestions
  * Input: { taskTitle, taskDescription, userContext }
  * Output: { subtasks, timeEstimates, contexts, energyLevels, dependencies, quickWins }
  */
-exports.analyzeTask = functions.https.onCall(async (data, context) => {
+exports.analyzeTask = onCall(async (data, context) => {
   // Check authentication
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
@@ -72,8 +72,8 @@ Respond in JSON format with this structure:
 }`;
 
   try {
-    // Use Gemini 1.5 Pro for task analysis
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
+    const genAI = new GoogleGenerativeAI(GOOGLE_AI_API_KEY.value());
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
@@ -127,7 +127,7 @@ Respond in JSON format with this structure:
  * Input: { topic, taskContext, depth }
  * Output: { research, actionableTasks, resources }
  */
-exports.deepResearch = functions.https.onCall(async (data, context) => {
+exports.deepResearch = onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
   }
@@ -177,8 +177,8 @@ Format as JSON:
 }`;
 
   try {
-    // Use Gemini 1.5 Pro for deep research
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
+    const genAI = new GoogleGenerativeAI(GOOGLE_AI_API_KEY.value());
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
     const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
@@ -227,32 +227,55 @@ Format as JSON:
   }
 });
 
-// ============================================================================
+// ============================================================================ 
 // VOICE INTERFACE FUNCTIONS
-// ============================================================================
+// ============================================================================ 
 
 /**
  * Process voice commands with full task context
  * Input: { command, context: { tasks, recentActions, preferences } }
  * Output: { response, action, data, needsConfirmation }
  */
-exports.processVoiceCommand = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
-  }
+exports.processVoiceCommand = onRequest(async (req, res) => {
+  // Adding a comment to force a change. (Attempt 2)
+  cors(req, res, async () => {
+    try {
+      const genAI = new GoogleGenerativeAI(GOOGLE_AI_API_KEY.value());
+      console.log('Request body:', req.body);
+      if (req.method !== 'POST') {
+        return res.status(405).send('Method Not Allowed');
+      }
 
-  const { command, context: userContext } = data;
+      // Manually handle authentication
+      const idToken = req.headers.authorization?.split('Bearer ')[1];
+      console.log('ID Token:', idToken);
+      let decodedToken;
+      if (idToken) {
+        try {
+          decodedToken = await admin.auth().verifyIdToken(idToken);
+          console.log('Decoded Token:', decodedToken);
+        } catch (error) {
+          console.error('Error verifying ID token:', error);
+          return res.status(401).send('Unauthorized');
+        }
+      } else {
+        return res.status(401).send('Unauthorized');
+      }
 
-  // Build comprehensive context
-  const tasksContext = userContext.tasks?.map(t => 
-    `- "${t.title}" (${t.context || 'no context'}, ${t.status}, priority: ${t.importance || 3}/${t.urgency || 3})`
-  ).join('\n') || 'No active tasks';
+      const { command, context: userContext } = req.body.data;
+      console.log('Command:', command);
+      console.log('User Context:', userContext);
 
-  const recentContext = userContext.recentActions?.map(a => 
-    `${a.role}: ${a.content}`
-  ).join('\n') || 'No recent conversation';
+      // Build comprehensive context
+      const tasksContext = userContext.tasks?.map(t => 
+        `- "${t.title}" (${t.context || 'no context'}, ${t.status}, priority: ${t.importance || 3}/${t.urgency || 3})`
+      ).join('\n') || 'No active tasks';
 
-  const systemPrompt = `You are a voice assistant for a GTD (Getting Things Done) productivity system.
+      const recentContext = userContext.recentActions?.map(a => 
+        `${a.role}: ${a.content}`
+      ).join('\n') || 'No recent conversation';
+
+      const systemPrompt = `You are a voice assistant for a GTD (Getting Things Done) productivity system.
 The user is interacting hands-free, likely while driving or in a meeting.
 
 CURRENT TASKS:
@@ -294,59 +317,67 @@ CONFIRMATION EXAMPLES:
 - "I'll mark 'Review quarterly report' as complete. Is that correct?"
 - "I'll change the due date of 'Project proposal' to next Monday. Confirm?"`;
 
-  try {
-    // Use Gemini 1.5 Flash for faster voice command processing
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      // Use Gemini 1.5 Flash for faster voice command processing
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-    const result = await model.generateContent({
-      contents: [{ 
-        role: 'user', 
-        parts: [{ text: `${systemPrompt}\n\nUSER COMMAND: "${command}"` }] 
-      }],
-      generationConfig: {
-        temperature: 0.8,
-        topK: 40,
-        topP: 0.95,
-        maxOutputTokens: 1024,
-      }
-    });
+      const result = await model.generateContent({
+        contents: [{ 
+          role: 'user', 
+          parts: [{ text: `${systemPrompt}\n\nUSER COMMAND: "${command}"` }] 
+        }],
+        generationConfig: {
+          temperature: 0.8,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 1024,
+        }
+      });
 
-    const response = result.response;
-    const text = response.text();
-    
-    // Parse JSON from response
-    let result_data;
-    try {
-      // Try to extract JSON from markdown code blocks if present
-      const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/```\n([\s\S]*?)\n```/);
-      if (jsonMatch) {
-        result_data = JSON.parse(jsonMatch[1]);
-      } else {
-        result_data = JSON.parse(text);
+      const response = result.response;
+      const text = response.text();
+      console.log('Gemini Response:', text);
+      
+      // Parse JSON from response
+      let result_data;
+      try {
+        // Try to extract JSON from markdown code blocks if present
+        const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/```\n([\s\S]*?)\n```/);
+        if (jsonMatch) {
+          result_data = JSON.parse(jsonMatch[1]);
+        } else {
+          result_data = JSON.parse(text);
+        }
+      } catch (parseError) {
+        // If JSON parsing fails, extract text and create fallback response
+        console.log('Failed to parse JSON, using fallback response');
+        result_data = {
+          response: text,
+          action: 'none',
+          data: {},
+          needsConfirmation: false
+        };
       }
-    } catch (parseError) {
-      // If JSON parsing fails, extract text and create fallback response
-      console.log('Failed to parse JSON, using fallback response');
-      result_data = {
-        response: text,
-        action: 'none',
-        data: {},
-        needsConfirmation: false
-      };
+      
+      console.log(`Voice command processed for user ${decodedToken.uid}: ${command}`);
+      
+      res.json({
+        data: {
+          success: true,
+          ...result_data,
+          timestamp: new Date().toISOString()
+        }
+      });
+
+    } catch (error) {
+      console.error('Error processing voice command:', error);
+      res.status(500).json({
+        data: {
+          success: false,
+          error: 'Failed to process voice command'
+        }
+      });
     }
-    
-    console.log(`Voice command processed for user ${context.auth.uid}: ${command}`);
-    
-    return {
-      success: true,
-      ...result_data,
-      timestamp: new Date().toISOString()
-    };
-
-  } catch (error) {
-    console.error('Error processing voice command:', error);
-    throw new functions.https.HttpsError('internal', 'Failed to process voice command');
-  }
+  });
 });
 
 /**
@@ -354,7 +385,7 @@ CONFIRMATION EXAMPLES:
  * Input: { text, userId, voice }
  * Output: { audioUrl, duration }
  */
-exports.generateAudioSummary = functions.https.onCall(async (data, context) => {
+exports.generateAudioSummary = onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
   }
@@ -424,18 +455,15 @@ exports.generateAudioSummary = functions.https.onCall(async (data, context) => {
   }
 });
 
-// ============================================================================
+// ============================================================================ 
 // BACKUP & MAINTENANCE FUNCTIONS
-// ============================================================================
+// ============================================================================ 
 
 /**
  * Scheduled daily backup of all user data
  * Runs at 2 AM PST daily
  */
-exports.scheduledBackup = functions.pubsub
-  .schedule('0 2 * * *')
-  .timeZone('America/Los_Angeles')
-  .onRun(async (context) => {
+exports.scheduledBackup = onSchedule('0 2 * * *', async (context) => {
     console.log('Starting scheduled backup...');
     
     try {
@@ -499,7 +527,7 @@ exports.scheduledBackup = functions.pubsub
  * Manual backup trigger
  * Can be called by admin users to create immediate backup
  */
-exports.triggerBackup = functions.https.onCall(async (data, context) => {
+exports.triggerBackup = onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated');
   }
@@ -524,14 +552,14 @@ exports.triggerBackup = functions.https.onCall(async (data, context) => {
   }
 });
 
-// ============================================================================
+// ============================================================================ 
 // UTILITY FUNCTIONS
-// ============================================================================
+// ============================================================================ 
 
 /**
  * Health check endpoint
  */
-exports.healthCheck = functions.https.onRequest((req, res) => {
+exports.healthCheck = onRequest((req, res) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),

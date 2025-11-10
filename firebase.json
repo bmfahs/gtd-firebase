@@ -10,6 +10,7 @@
       "source": "functions",
       "codebase": "default",
       "disallowLegacyRuntimeConfig": true,
+      "region": "us-west1",
       "ignore": [
         "node_modules",
         ".git",

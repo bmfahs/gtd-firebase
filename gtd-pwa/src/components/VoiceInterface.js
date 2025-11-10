@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { getAuth, onAuthStateChanged, getIdToken } from 'firebase/auth';
 import { Mic, MicOff, Volume2, AlertCircle } from 'lucide-react';
+import './VoiceInterface.css'; // Import the new CSS file
 
 const VoiceInterface = ({ user, tasks, onTaskUpdate }) => {
   const [isListening, setIsListening] = useState(false);
@@ -13,88 +14,34 @@ const VoiceInterface = ({ user, tasks, onTaskUpdate }) => {
   
   const recognitionRef = useRef(null);
   const synthesisRef = useRef(window.speechSynthesis);
-  const functionsRef = useRef(getFunctions());
+  const idTokenRef = useRef(null);
+
+  // Refs to hold the latest state values for use in event handlers
+  const isListeningRef = useRef(isListening);
+  const isProcessingRef = useRef(isProcessing);
 
   useEffect(() => {
-    // Initialize Speech Recognition
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    
-    if (!SpeechRecognition) {
-      setError('Speech recognition not supported in this browser. Please use Chrome or Edge.');
-      return;
-    }
+    isListeningRef.current = isListening;
+  }, [isListening]);
 
-    recognitionRef.current = new SpeechRecognition();
-    recognitionRef.current.continuous = false; // Process one command at a time
-    recognitionRef.current.interimResults = true;
-    recognitionRef.current.lang = 'en-US';
+  useEffect(() => {
+    isProcessingRef.current = isProcessing;
+  }, [isProcessing]);
 
-    recognitionRef.current.onresult = (event) => {
-      const current = event.resultIndex;
-      const transcript = event.results[current][0].transcript;
-      
-      if (event.results[current].isFinal) {
-        setTranscript('');
-        handleVoiceCommand(transcript);
+  useEffect(() => {
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const token = await getIdToken(user);
+        idTokenRef.current = token;
       } else {
-        setTranscript(transcript);
+        idTokenRef.current = null;
       }
-    };
+    });
+    return () => unsubscribe();
+  }, []);
 
-    recognitionRef.current.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
-      setIsListening(false);
-      
-      if (event.error === 'no-speech') {
-        setError('No speech detected. Please try again.');
-      } else if (event.error === 'audio-capture') {
-        setError('Microphone not accessible. Please check permissions.');
-      } else {
-        setError(`Speech recognition error: ${event.error}`);
-      }
-    };
-
-    recognitionRef.current.onend = () => {
-      // Auto-restart if still in listening mode and not processing
-      if (isListening && !isProcessing) {
-        try {
-          recognitionRef.current.start();
-        } catch (err) {
-          console.log('Recognition restart failed:', err);
-        }
-      }
-    };
-
-    return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
-    };
-  }, [isListening, isProcessing]);
-
-  const startListening = () => {
-    if (recognitionRef.current && !isListening) {
-      setError(null);
-      try {
-        recognitionRef.current.start();
-        setIsListening(true);
-        speak('I\'m listening. How can I help you?');
-      } catch (err) {
-        setError('Could not start microphone. Please check permissions.');
-      }
-    }
-  };
-
-  const stopListening = () => {
-    if (recognitionRef.current && isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-      setTranscript('');
-      speak('Voice assistant stopped.');
-    }
-  };
-
-  const speak = (text, onEndCallback = null) => {
+  const speak = useCallback((text, onEndCallback = null) => {
     // Stop any current speech
     synthesisRef.current.cancel();
 
@@ -115,9 +62,50 @@ const VoiceInterface = ({ user, tasks, onTaskUpdate }) => {
     };
 
     synthesisRef.current.speak(utterance);
-  };
+  }, []); // No dependencies as it only uses refs and setState setters
 
-  const handleVoiceCommand = async (command) => {
+  const executeAction = useCallback(async ({ action, data }) => {
+    try {
+      switch (action) {
+        case 'add_task':
+          await onTaskUpdate({ type: 'add', data });
+          speak('Task added successfully.');
+          break;
+          
+        case 'update_task':
+          await onTaskUpdate({ type: 'update', data });
+          speak('Task updated.');
+          break;
+          
+        case 'complete_task':
+          await onTaskUpdate({ type: 'complete', data });
+          speak('Task marked as complete.');
+          break;
+          
+        case 'delete_task':
+          await onTaskUpdate({ type: 'delete', data });
+          speak('Task deleted.');
+          break;
+          
+        case 'query_tasks':
+          // Response is already spoken by the AI
+          break;
+          
+        case 'research':
+          speak('I\'ll research that topic and get back to you.');
+          // Trigger deep research (could be async)
+          break;
+          
+default:
+          console.log('Unknown action:', action);
+      }
+    } catch (error) {
+      console.error('Error executing action:', error);
+      speak('Sorry, I encountered an error executing that action.');
+    }
+  }, [onTaskUpdate, speak]); // Dependencies: onTaskUpdate, speak
+
+  const handleVoiceCommand = useCallback(async (command) => {
     console.log('Voice command received:', command);
     setIsProcessing(true);
     
@@ -132,7 +120,7 @@ const VoiceInterface = ({ user, tasks, onTaskUpdate }) => {
     // Check if this is a confirmation response
     if (pendingConfirmation) {
       const isConfirmed = /^(yes|yeah|yep|sure|ok|okay|correct|right|confirm|do it|proceed)/i.test(command);
-      const isDenied = /^(no|nope|nah|cancel|don't|stop)/i.test(command);
+      const isDenied = /^(no|nope|nah|cancel|stop)/i.test(command);
 
       if (isConfirmed) {
         await executeAction(pendingConfirmation);
@@ -167,33 +155,54 @@ const VoiceInterface = ({ user, tasks, onTaskUpdate }) => {
     };
 
     try {
-      // Call Cloud Function to process command
-      const processCommand = httpsCallable(functionsRef.current, 'processVoiceCommand');
-      const result = await processCommand({ command, context });
+      const auth = getAuth();
+      const currentUser = auth.currentUser;
 
-      if (!result.data.success) {
+      if (!currentUser) {
+        throw new Error('User not authenticated.');
+      }
+
+      const freshIdToken = await currentUser.getIdToken(true); // Force refresh token
+
+      const response = await fetch('https://us-central1-personal-gtd-ea76d.cloudfunctions.net/processVoiceCommand', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${freshIdToken}` // Use the fresh token
+        },
+        body: JSON.stringify({ data: { command, context } })
+      });
+
+      if (!response.ok) {
         throw new Error('Failed to process command');
       }
 
-      const { response, action, data, needsConfirmation } = result.data;
+      const result = await response.json();
+      const { data } = result;
+
+      if (!data.success) {
+        throw new Error('Failed to process command');
+      }
+
+      const { response: responseText, action, data: actionData, needsConfirmation } = data;
 
       // Add AI response to history
       setConversationHistory([...newHistory, { 
         role: 'assistant', 
-        content: response,
+        content: responseText,
         timestamp: new Date().toISOString()
       }]);
 
       // Speak the response
-      speak(response, () => {
+      speak(responseText, () => {
         setIsProcessing(false);
       });
 
       // Handle the action
       if (needsConfirmation) {
-        setPendingConfirmation({ action, data });
+        setPendingConfirmation({ action, data: actionData });
       } else if (action && action !== 'none') {
-        await executeAction({ action, data });
+        await executeAction({ action, data: actionData });
       }
 
     } catch (error) {
@@ -211,46 +220,91 @@ const VoiceInterface = ({ user, tasks, onTaskUpdate }) => {
         setIsProcessing(false);
       });
     }
+  }, [conversationHistory, pendingConfirmation, executeAction, speak, setIsProcessing, setConversationHistory, setPendingConfirmation, tasks]); // Dependencies
+
+  useEffect(() => {
+    // Initialize Speech Recognition
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
+      setError('Speech recognition not supported in this browser. Please use Chrome or Edge.');
+      return;
+    }
+
+    recognitionRef.current = new SpeechRecognition();
+    console.log('Speech recognition object created:', recognitionRef.current);
+    recognitionRef.current.continuous = false; // Process one command at a time
+    recognitionRef.current.interimResults = true;
+    recognitionRef.current.lang = 'en-US';
+
+    recognitionRef.current.onresult = (event) => {
+      console.log('onresult event:', event);
+      const current = event.resultIndex;
+      const transcript = event.results[current][0].transcript;
+      
+      if (event.results[current].isFinal) {
+        console.log('Final transcript:', transcript);
+        setTranscript('');
+        handleVoiceCommand(transcript);
+      } else {
+        console.log('Interim transcript:', transcript);
+        setTranscript(transcript);
+      }
+    };
+
+    recognitionRef.current.onerror = (event) => {
+      console.error('Speech recognition error:', event.error);
+      setIsListening(false);
+      
+      if (event.error === 'no-speech') {
+        setError('No speech detected. Please try again.');
+      } else if (event.error === 'audio-capture') {
+        setError('Microphone not accessible. Please check permissions.');
+      } else {
+        setError(`Speech recognition error: ${event.error}`);
+      }
+    };
+
+    recognitionRef.current.onend = () => {
+      console.log('onend event. isListening:', isListeningRef.current, 'isProcessing:', isProcessingRef.current);
+      // Auto-restart if still in listening mode and not processing
+      if (isListeningRef.current && !isProcessingRef.current) {
+        try {
+          recognitionRef.current.start();
+        } catch (err) {
+          console.log('Recognition restart failed:', err);
+        }
+      }
+    };
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, [handleVoiceCommand]); // Only handleVoiceCommand as a dependency
+
+  const startListening = () => {
+    if (recognitionRef.current && !isListening) {
+      setError(null);
+      try {
+        console.log('Starting speech recognition');
+        recognitionRef.current.start();
+        setIsListening(true);
+        speak('I\'m listening. How can I help you?');
+      } catch (err) {
+        setError('Could not start microphone. Please check permissions.');
+      }
+    }
   };
 
-  const executeAction = async ({ action, data }) => {
-    try {
-      switch (action) {
-        case 'add_task':
-          await onTaskUpdate({ type: 'add', data });
-          speak('Task added successfully.');
-          break;
-          
-        case 'update_task':
-          await onTaskUpdate({ type: 'update', data });
-          speak('Task updated.');
-          break;
-          
-        case 'complete_task':
-          await onTaskUpdate({ type: 'complete', data });
-          speak('Task marked as complete.');
-          break;
-          
-        case 'delete_task':
-          await onTaskUpdate({ type: 'delete', data });
-          speak('Task deleted.');
-          break;
-          
-        case 'query_tasks':
-          // Response is already spoken by the AI
-          break;
-          
-        case 'research':
-          speak('I\'ll research that topic and get back to you.');
-          // Trigger deep research (could be async)
-          break;
-          
-        default:
-          console.log('Unknown action:', action);
-      }
-    } catch (error) {
-      console.error('Error executing action:', error);
-      speak('Sorry, I encountered an error executing that action.');
+  const stopListening = () => {
+    if (recognitionRef.current && isListening) {
+      console.log('Stopping speech recognition');
+      recognitionRef.current.stop();
+      setIsListening(false);
+      setTranscript('');
+      speak('Voice assistant stopped.');
     }
   };
 
@@ -333,252 +387,6 @@ const VoiceInterface = ({ user, tasks, onTaskUpdate }) => {
           <li>"Research best practices for project management"</li>
         </ul>
       </div>
-
-      <style jsx>{`
-        .voice-interface {
-          position: fixed;
-          bottom: 20px;
-          right: 20px;
-          background: white;
-          border-radius: 16px;
-          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
-          padding: 24px;
-          width: 420px;
-          max-height: 600px;
-          overflow-y: auto;
-          z-index: 1000;
-        }
-
-        .voice-header {
-          margin-bottom: 16px;
-        }
-
-        .voice-header h3 {
-          margin: 0 0 8px 0;
-          font-size: 18px;
-          font-weight: 600;
-          color: #1f2937;
-        }
-
-        .error-banner {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 12px;
-          background: #fee2e2;
-          color: #dc2626;
-          border-radius: 6px;
-          font-size: 13px;
-        }
-
-        .voice-controls {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 20px;
-        }
-
-        .voice-button {
-          width: 80px;
-          height: 80px;
-          border-radius: 50%;
-          border: none;
-          background: #3b82f6;
-          color: white;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.3s;
-          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-        }
-
-        .voice-button:hover:not(:disabled) {
-          background: #2563eb;
-          transform: scale(1.05);
-        }
-
-        .voice-button:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .voice-button.active {
-          background: #ef4444;
-          animation: pulse-ring 1.5s infinite;
-        }
-
-        .voice-button.processing {
-          background: #f59e0b;
-        }
-
-        @keyframes pulse-ring {
-          0%, 100% { 
-            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3),
-                        0 0 0 0 rgba(239, 68, 68, 0.7);
-          }
-          50% { 
-            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3),
-                        0 0 0 15px rgba(239, 68, 68, 0);
-          }
-        }
-
-        .speaking-indicator,
-        .processing-indicator {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          color: #3b82f6;
-          font-size: 14px;
-        }
-
-        .pulse {
-          animation: pulse 1s infinite;
-        }
-
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-
-        .spinner {
-          width: 20px;
-          height: 20px;
-          border: 3px solid #e5e7eb;
-          border-top-color: #3b82f6;
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        .transcript-display {
-          margin-bottom: 16px;
-          padding: 16px;
-          background: #f3f4f6;
-          border-radius: 8px;
-          min-height: 60px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .transcript-display p {
-          margin: 0;
-          color: #4b5563;
-          font-style: italic;
-        }
-
-        .confirmation-prompt {
-          margin-bottom: 16px;
-          padding: 12px;
-          background: #fef3c7;
-          border: 2px solid #f59e0b;
-          border-radius: 8px;
-          text-align: center;
-        }
-
-        .confirmation-prompt p {
-          margin: 4px 0;
-          font-size: 14px;
-        }
-
-        .conversation-history {
-          margin-bottom: 16px;
-        }
-
-        .conversation-history h4 {
-          margin: 0 0 12px 0;
-          font-size: 14px;
-          font-weight: 600;
-          color: #6b7280;
-          text-transform: uppercase;
-        }
-
-        .message {
-          margin-bottom: 12px;
-          padding: 10px 12px;
-          border-radius: 8px;
-          font-size: 14px;
-          position: relative;
-        }
-
-        .message.user {
-          background: #dbeafe;
-          margin-left: 20px;
-        }
-
-        .message.assistant {
-          background: #f3f4f6;
-          margin-right: 20px;
-        }
-
-        .message.error {
-          background: #fee2e2;
-          border: 1px solid #fecaca;
-        }
-
-        .message .role {
-          font-weight: 600;
-          margin-right: 8px;
-          color: #374151;
-        }
-
-        .message .content {
-          color: #1f2937;
-        }
-
-        .message .timestamp {
-          display: block;
-          margin-top: 4px;
-          font-size: 11px;
-          color: #9ca3af;
-        }
-
-        .empty-state {
-          text-align: center;
-          color: #9ca3af;
-          font-size: 13px;
-          padding: 20px;
-        }
-
-        .voice-tips {
-          padding-top: 16px;
-          border-top: 1px solid #e5e7eb;
-        }
-
-        .voice-tips h4 {
-          margin: 0 0 8px 0;
-          font-size: 13px;
-          font-weight: 600;
-          color: #6b7280;
-        }
-
-        .voice-tips ul {
-          margin: 0;
-          padding-left: 20px;
-        }
-
-        .voice-tips li {
-          font-size: 12px;
-          color: #6b7280;
-          margin-bottom: 4px;
-        }
-
-        /* Mobile responsive */
-        @media (max-width: 768px) {
-          .voice-interface {
-            bottom: 10px;
-            right: 10px;
-            left: 10px;
-            width: auto;
-            max-height: 500px;
-          }
-        }
-      `}</style>
     </div>
   );
 };

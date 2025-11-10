@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { db } from './firebase';
 import { serverTimestamp } from 'firebase/firestore';
 import { 
   Calendar, Clock, Zap, Star, Tag, FolderOpen, Folder
