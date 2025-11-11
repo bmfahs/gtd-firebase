@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { db } from './firebase';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, deleteDoc, query, where, getDocs } from 'firebase/firestore';
-import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, ChevronDown } from 'lucide-react';
+import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, ChevronDown, Inbox, ListTodo, FolderTree, Clock } from 'lucide-react';
 import TaskDetailEditor from './EnhancedComponents';
-import VoiceInterface from './components/VoiceInterface'; // Moved to top
+import VoiceInterface from './components/VoiceInterface';
 
 // Interactive Task Item Component
-const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, allTasks }) => {
+const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, allTasks, showHierarchy = true }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(task.title);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -148,13 +148,27 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, a
     }
   };
 
+  // Format date for display
+  const formatDate = (date) => {
+    if (!date) return '';
+    const d = date.toDate ? date.toDate() : new Date(date);
+    const now = new Date();
+    const diffTime = now - d;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) return 'today';
+    if (diffDays === 1) return 'yesterday';
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
   return (
     <>
       <div 
         className="task-item-container"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        style={{ marginLeft: `${level * 24}px` }}
+        style={{ marginLeft: showHierarchy ? `${level * 24}px` : '0px' }}
       >
         <div className={`task-item ${isCompleted ? 'completed' : ''}`}>
           {/* Drag Handle */}
@@ -163,7 +177,7 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, a
           </div>
 
           {/* Collapse/Expand Toggle */}
-          {hasChildren && (
+          {showHierarchy && hasChildren && (
             <button
               className="collapse-toggle"
               onClick={() => setIsCollapsed(!isCollapsed)}
@@ -171,7 +185,7 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, a
               {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
             </button>
           )}
-          {!hasChildren && <div style={{ width: '16px' }} />}
+          {showHierarchy && !hasChildren && <div style={{ width: '16px' }} />}
 
           {/* Completion Checkbox */}
           <button
@@ -220,8 +234,11 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, a
             {task.timeEstimate && (
               <span className="task-time">{task.timeEstimate}m</span>
             )}
-            {hasChildren && (
+            {hasChildren && showHierarchy && (
               <span className="task-children">{task.children.length} subtasks</span>
+            )}
+            {task.modifiedDate && (
+              <span className="task-date">{formatDate(task.modifiedDate)}</span>
             )}
           </div>
 
@@ -235,13 +252,15 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, a
               >
                 <Edit2 size={14} />
               </button>
-              <button
-                onClick={() => setShowAddChild(!showAddChild)}
-                className="action-btn"
-                title="Add subtask"
-              >
-                <Plus size={14} />
-              </button>
+              {showHierarchy && (
+                <button
+                  onClick={() => setShowAddChild(!showAddChild)}
+                  className="action-btn"
+                  title="Add subtask"
+                >
+                  <Plus size={14} />
+                </button>
+              )}
               <button
                 onClick={handleDelete}
                 className="action-btn delete-btn"
@@ -254,7 +273,7 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, a
         </div>
 
         {/* Add Child Input */}
-        {showAddChild && (
+        {showAddChild && showHierarchy && (
           <div className="add-child-container" style={{ marginLeft: '40px', marginTop: '8px' }}>
             <input
               type="text"
@@ -276,8 +295,8 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, a
           </div>
         )}
 
-        {/* Render Children (if not collapsed) */}
-        {hasChildren && !isCollapsed && (
+        {/* Render Children (if not collapsed and showing hierarchy) */}
+        {showHierarchy && hasChildren && !isCollapsed && (
           <div className="task-children-container">
             {task.children.map(child => (
               <InteractiveTaskItem
@@ -288,6 +307,7 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, a
                 level={level + 1}
                 allContexts={allContexts}
                 allTasks={allTasks}
+                showHierarchy={showHierarchy}
               />
             ))}
           </div>
@@ -412,6 +432,7 @@ const QuickAddTask = ({ userId, onAdd, parentId = null, level = 0, allContexts }
 
 // Main App Component with Interactive Features
 const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
+  const [currentView, setCurrentView] = useState('inbox'); // inbox, todo, alltasks, recent
   const [filter, setFilter] = useState('all'); // all, active, completed
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedContext, setSelectedContext] = useState(null);
@@ -431,8 +452,79 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
 
   const allContexts = getUniqueContexts(tasks);
 
+  // Flatten all tasks recursively
+  const flattenTasks = (taskList) => {
+    const flat = [];
+    const flatten = (tasks) => {
+      tasks.forEach(task => {
+        flat.push(task);
+        if (task.children && task.children.length > 0) {
+          flatten(task.children);
+        }
+      });
+    };
+    flatten(taskList);
+    return flat;
+  };
+
+  // Get tasks for different views
+  const getViewTasks = () => {
+    switch (currentView) {
+      case 'inbox':
+        const inboxTask = tasks.find(t => t.title === '<Inbox>' && !t.parentId);
+        return inboxTask ? inboxTask.children.filter(child => child.status !== 'done') : [];
+      
+      case 'todo':
+        // Flatten all tasks, exclude projects, incomplete only, sort by importance
+        const allFlat = flattenTasks(tasks);
+        return allFlat
+          .filter(t => !t.isProject && t.status !== 'done')
+          .sort((a, b) => {
+            // Sort by computed priority (or importance + urgency)
+            const priorityA = a.computedPriority || ((a.importance || 3) * 3 + (a.urgency || 3) * 2.5);
+            const priorityB = b.computedPriority || ((b.importance || 3) * 3 + (b.urgency || 3) * 2.5);
+            return priorityB - priorityA;
+          });
+      
+      case 'recent':
+        // All tasks sorted by modified date
+        const allFlatWithDates = flattenTasks(tasks);
+        return allFlatWithDates
+          .filter(t => t.modifiedDate)
+          .sort((a, b) => {
+            const dateA = a.modifiedDate.toDate ? a.modifiedDate.toDate() : new Date(a.modifiedDate);
+            const dateB = b.modifiedDate.toDate ? b.modifiedDate.toDate() : new Date(b.modifiedDate);
+            return dateB - dateA;
+          })
+          .slice(0, 50); // Limit to 50 most recent
+      
+      case 'alltasks':
+      default:
+        // Default hierarchical view of incomplete tasks
+        return tasks;
+    }
+  };
+
   // Filter tasks
   const filterTasks = (taskList) => {
+    // For flat views, apply filters directly
+    if (currentView === 'todo' || currentView === 'recent') {
+      return taskList.filter(task => {
+        const matchesSearch = !searchTerm || 
+          (task.title || '').toLowerCase().includes(searchTerm.toLowerCase());
+        
+        const matchesContext = !selectedContext || 
+          task.context === selectedContext;
+        
+        const matchesStatus = filter === 'all' ||
+          (filter === 'active' && task.status !== 'done') ||
+          (filter === 'completed' && task.status === 'done');
+        
+        return matchesSearch && matchesContext && matchesStatus;
+      });
+    }
+
+    // For hierarchical views
     return taskList
       .map(task => {
         // Filter children recursively
@@ -461,28 +553,31 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
       .filter(task => task !== null);
   };
 
-  const filteredTasks = filterTasks(tasks);
+  const viewTasks = getViewTasks();
+  const filteredTasks = filterTasks(viewTasks);
+
+  // Determine if we should show hierarchy
+  const showHierarchy = currentView === 'alltasks' || currentView === 'inbox';
 
   const getOrCreateInboxId = async (userId) => {
     const tasksCollectionRef = collection(db, 'tasks');
     const q = query(tasksCollectionRef, 
       where("userId", "==", userId), 
       where("title", "==", "<Inbox>"),
-      where("parentId", "==", null) // Ensure it's a top-level Inbox
+      where("parentId", "==", null)
     );
     const querySnapshot = await getDocs(q);
 
     if (!querySnapshot.empty) {
       return querySnapshot.docs[0].id;
     } else {
-      // Create the Inbox task
       const inboxTask = {
         title: '<Inbox>',
         userId: userId,
         status: 'next_action',
         importance: 3,
         urgency: 3,
-        source: 'system', // Indicate it's a system-generated task
+        source: 'system',
         createdDate: serverTimestamp(),
         modifiedDate: serverTimestamp(),
         computedPriority: 0,
@@ -502,24 +597,20 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           console.log('Attempting to add task with data:', update.data);
           let parentId = update.data.parentId;
 
-          // If parentId is undefined or an empty string, treat it as needing the Inbox
           if (!parentId) {
             parentId = await getOrCreateInboxId(user.uid);
             console.log('Resolved default Inbox parentId:', parentId);
-          } else if (parentId === '<Inbox>') { // If AI explicitly suggested <Inbox>
+          } else if (parentId === '<Inbox>') {
             parentId = await getOrCreateInboxId(user.uid);
             console.log('Resolved explicit Inbox parentId:', parentId);
           }
-          // If parentId is still '<Inbox>' here, it means getOrCreateInboxId failed or returned '<Inbox>'
-          // which should not happen. But as a fallback, ensure it's null for Firestore.
           if (parentId === '<Inbox>') {
               parentId = null;
           }
 
-
           const newTaskData = {
             ...update.data,
-            parentId: parentId, // Use the resolved parentId (can be null or an actual ID)
+            parentId: parentId,
             userId: user.uid,
             createdDate: serverTimestamp(),
             modifiedDate: serverTimestamp(),
@@ -558,87 +649,139 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
         default:
           console.warn('Unknown task update type:', update.type);
       }
-      onUpdate(); // Trigger a general update
+      onUpdate();
     } catch (error) {
       console.error('Error processing voice command action:', error);
-      // Optionally, provide user feedback about the error
     }
   };
 
   return (
     <div className="gtd-app">
-      {/* Header */}
-      <div className="gtd-header">
-        <h1>My GTD Tasks</h1>
-        <div className="header-stats">
-          <span>{tasks.length} total tasks</span>
+      {/* Left Sidebar Navigation */}
+      <div className="gtd-sidebar">
+        <div className="sidebar-section">
+          <h3 className="sidebar-header">Views</h3>
+          <nav className="sidebar-nav">
+            <button
+              className={`nav-item ${currentView === 'inbox' ? 'active' : ''}`}
+              onClick={() => setCurrentView('inbox')}
+            >
+              <Inbox size={18} />
+              <span>Inbox</span>
+            </button>
+            <button
+              className={`nav-item ${currentView === 'todo' ? 'active' : ''}`}
+              onClick={() => setCurrentView('todo')}
+            >
+              <ListTodo size={18} />
+              <span>To Do</span>
+            </button>
+            <button
+              className={`nav-item ${currentView === 'alltasks' ? 'active' : ''}`}
+              onClick={() => setCurrentView('alltasks')}
+            >
+              <FolderTree size={18} />
+              <span>All Tasks</span>
+            </button>
+            <button
+              className={`nav-item ${currentView === 'recent' ? 'active' : ''}`}
+              onClick={() => setCurrentView('recent')}
+            >
+              <Clock size={18} />
+              <span>Recent</span>
+            </button>
+          </nav>
         </div>
       </div>
 
-      {/* Filters & Search */}
-      <div className="gtd-filters">
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search tasks..."
-          className="search-input"
-        />
-
-        <div className="filter-buttons">
-          <button
-            onClick={() => setFilter('all')}
-            className={filter === 'all' ? 'active' : ''}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setFilter('active')}
-            className={filter === 'active' ? 'active' : ''}
-          >
-            Active
-          </button>
-          <button
-            onClick={() => setFilter('completed')}
-            className={filter === 'completed' ? 'active' : ''}
-          >
-            Completed
-          </button>
+      {/* Main Content Area */}
+      <div className="gtd-main">
+        {/* Header */}
+        <div className="gtd-header">
+          <h1>
+            {currentView === 'inbox' && 'Inbox'}
+            {currentView === 'todo' && 'To Do'}
+            {currentView === 'alltasks' && 'All Tasks'}
+            {currentView === 'recent' && 'Recent'}
+          </h1>
+          <div className="header-stats">
+            <span>{filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}</span>
+          </div>
         </div>
 
-        {allContexts.length > 0 && (
-          <select
-            value={selectedContext || ''}
-            onChange={(e) => setSelectedContext(e.target.value || null)}
-            className="context-select"
-          >
-            <option value="">All Contexts</option>
-            {allContexts.map(ctx => (
-              <option key={ctx} value={ctx}>{ctx}</option>
-            ))}
-          </select>
-        )}
-      </div>
+        {/* Filters & Search */}
+        <div className="gtd-filters">
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Search tasks..."
+            className="search-input"
+          />
 
-      {/* Quick Add */}
-      <QuickAddTask userId={user.uid} onAdd={onUpdate} allContexts={allContexts} />
+          <div className="filter-buttons">
+            <button
+              onClick={() => setFilter('all')}
+              className={filter === 'all' ? 'active' : ''}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setFilter('active')}
+              className={filter === 'active' ? 'active' : ''}
+            >
+              Active
+            </button>
+            <button
+              onClick={() => setFilter('completed')}
+              className={filter === 'completed' ? 'active' : ''}
+            >
+              Completed
+            </button>
+          </div>
 
-      {/* Task List */}
-      <div className="task-list">
-        {filteredTasks.length === 0 ? (
-          <p className="empty-state">No tasks found. Add one above!</p>
-        ) : (
-          filteredTasks.map(task => (
-            <InteractiveTaskItem
-              key={task.id}
-              task={task}
-              userId={user.uid}
-              onUpdate={onUpdate}
-              allContexts={allContexts}
-              allTasks={tasks} // Pass all tasks down
-            />
-          ))
+          {allContexts.length > 0 && (
+            <select
+              value={selectedContext || ''}
+              onChange={(e) => setSelectedContext(e.target.value || null)}
+              className="context-select"
+            >
+              <option value="">All Contexts</option>
+              {allContexts.map(ctx => (
+                <option key={ctx} value={ctx}>{ctx}</option>
+              ))}
+            </select>
+          )}
+        </div>
+
+        {/* Quick Add - only show for inbox and alltasks */}
+        {(currentView === 'inbox' || currentView === 'alltasks') && (
+          <QuickAddTask userId={user.uid} onAdd={onUpdate} allContexts={allContexts} />
         )}
+
+        {/* Task List */}
+        <div className="task-list">
+          {filteredTasks.length === 0 ? (
+            <p className="empty-state">
+              {currentView === 'inbox' && 'Inbox is empty. Add tasks to get started!'}
+              {currentView === 'todo' && 'No tasks to do. Great job!'}
+              {currentView === 'alltasks' && 'No tasks found. Add one above!'}
+              {currentView === 'recent' && 'No recent activity.'}
+            </p>
+          ) : (
+            filteredTasks.map(task => (
+              <InteractiveTaskItem
+                key={task.id}
+                task={task}
+                userId={user.uid}
+                onUpdate={onUpdate}
+                allContexts={allContexts}
+                allTasks={tasks}
+                showHierarchy={showHierarchy}
+              />
+            ))
+          )}
+        </div>
       </div>
 
       {/* Voice Interface */}
@@ -646,8 +789,69 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
 
       <style jsx>{`
         .gtd-app {
-          max-width: 1200px;
-          margin: 0 auto;
+          display: flex;
+          height: calc(100vh - 70px);
+          background: #f3f4f6;
+        }
+
+        .gtd-sidebar {
+          width: 240px;
+          background: white;
+          border-right: 1px solid #e5e7eb;
+          padding: 20px 0;
+          overflow-y: auto;
+        }
+
+        .sidebar-section {
+          margin-bottom: 24px;
+        }
+
+        .sidebar-header {
+          margin: 0 20px 12px;
+          font-size: 11px;
+          font-weight: 600;
+          text-transform: uppercase;
+          color: #6b7280;
+          letter-spacing: 0.05em;
+        }
+
+        .sidebar-nav {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+
+        .nav-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 20px;
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-size: 14px;
+          color: #4b5563;
+          transition: all 0.2s;
+          text-align: left;
+        }
+
+        .nav-item:hover {
+          background: #f3f4f6;
+        }
+
+        .nav-item.active {
+          background: #dbeafe;
+          color: #1e40af;
+          font-weight: 500;
+        }
+
+        .nav-item.active svg {
+          color: #3b82f6;
+        }
+
+        .gtd-main {
+          flex: 1;
+          overflow-y: auto;
           padding: 20px;
         }
 
@@ -818,6 +1022,13 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           padding: 2px 8px;
           background: #e5e7eb;
           color: #4b5563;
+          border-radius: 4px;
+        }
+
+        .task-date {
+          padding: 2px 8px;
+          background: #f3f4f6;
+          color: #6b7280;
           border-radius: 4px;
         }
 
