@@ -196,6 +196,13 @@ default:
       // Speak the response
       speak(responseText, () => {
         setIsProcessing(false);
+        if (isListeningRef.current) {
+          try {
+            recognitionRef.current.start();
+          } catch (err) {
+            console.log('Recognition restart failed:', err);
+          }
+        }
       });
 
       // Handle the action
