@@ -43,7 +43,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
         p.title.toLowerCase().includes(parentSearch.toLowerCase()) &&
         p.id !== task.id // Ensure task cannot be its own parent
       )
-    : [];
+    : potentialParents.filter(p => !p.parentId && p.id !== task.id); // Show top-level tasks if search is empty
 
   const currentParent = task.parentId ? potentialParents.find(p => p.id === task.parentId) : null;
 
