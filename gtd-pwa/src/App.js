@@ -30,11 +30,11 @@ const buildTaskTree = (tasks) => {
 
   const sortChildren = (task) => {
     if (task.children && task.children.length > 0) {
-      task.children.sort((a, b) => a.title.localeCompare(b.title));
+      task.children.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
       task.children.forEach(sortChildren);
     }
   };
-  tree.sort((a, b) => a.title.localeCompare(b.title));
+  tree.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
   tree.forEach(sortChildren);
 
   return tree;
