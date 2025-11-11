@@ -1,8 +1,37 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { serverTimestamp } from 'firebase/firestore';
 import { 
   Calendar, Clock, Zap, Star, Tag, FolderOpen, Folder
-} from 'lucide-react';
+}
+from 'lucide-react';
+
+// Helper to get all descendants of a task (used for exclusion)
+const getAllDescendantIds = (node) => {
+  let ids = new Set();
+  if (node.children) {
+    node.children.forEach(child => {
+      ids.add(child.id);
+      getAllDescendantIds(child).forEach(id => ids.add(id));
+    });
+  }
+  return ids;
+};
+
+// Helper to flatten tasks and add level, excluding current task and its descendants
+const getFlattentenedTasksForParentSelection = (tasksToFlatten, currentTaskId, excludedDescendantIds, level = 0) => {
+  let flat = [];
+  tasksToFlatten.forEach(t => {
+    if (t.id === currentTaskId || excludedDescendantIds.has(t.id)) {
+      // Exclude the current task and its descendants
+      return;
+    }
+    flat.push({ ...t, level });
+    if (t.children && t.children.length > 0) {
+      flat = flat.concat(getFlattentenedTasksForParentSelection(t.children, currentTaskId, excludedDescendantIds, level + 1));
+    }
+  });
+  return flat;
+};
 
 // Task Detail Editor Modal
 const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
@@ -23,29 +52,41 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
   const [parentSearch, setParentSearch] = useState('');
   const [showParentSearch, setShowParentSearch] = useState(false); // New state
 
-  // Flatten the tree of allTasks for searching, excluding the current task and its descendants
-  const getFlattentenedTasks = (tasks) => {
-    let flat = [];
-    const recurse = (task) => {
-      if (task.id === formData.id) return; // Exclude self
-      flat.push(task);
-      if (task.children) {
-        task.children.forEach(recurse);
+  // Memoize the set of descendant IDs for the current task
+  const currentTaskDescendantIds = useMemo(() => getAllDescendantIds(task), [task]);
+
+  const potentialParents = useMemo(() => {
+    return getFlattentenedTasksForParentSelection(allTasks || [], task.id, currentTaskDescendantIds);
+  }, [allTasks, task.id, currentTaskDescendantIds]);
+
+  const potentialParentsMap = useMemo(() => {
+    const map = new Map();
+    potentialParents.forEach(p => map.set(p.id, p));
+    return map;
+  }, [potentialParents]);
+
+  const filteredParents = useMemo(() => {
+    if (!parentSearch) {
+      return potentialParents;
+    }
+
+    const lowerCaseSearch = parentSearch.toLowerCase();
+    const matchingTasks = potentialParents.filter(p => p.title.toLowerCase().includes(lowerCaseSearch));
+
+    const tasksToShow = new Set();
+    matchingTasks.forEach(match => {
+      let current = match;
+      while (current) {
+        tasksToShow.add(current.id);
+        current = potentialParentsMap.get(current.parentId); // Use map for faster lookup
       }
-    };
-    tasks.forEach(recurse);
-    return flat;
-  };
-  const potentialParents = getFlattentenedTasks(allTasks || []);
+    });
 
-  const filteredParents = parentSearch
-    ? potentialParents.filter(p => 
-        p.title.toLowerCase().includes(parentSearch.toLowerCase()) &&
-        p.id !== task.id // Ensure task cannot be its own parent
-      )
-    : potentialParents.filter(p => !p.parentId && p.id !== task.id); // Show top-level tasks if search is empty
+    // Filter potentialParents to include only tasks that are matches or ancestors of matches
+    return potentialParents.filter(p => tasksToShow.has(p.id));
+  }, [parentSearch, potentialParents, potentialParentsMap]);
 
-  const currentParent = task.parentId ? potentialParents.find(p => p.id === task.parentId) : null;
+  const currentParent = task.parentId ? potentialParentsMap.get(task.parentId) : null;
 
   function formatDateForInput(date) {
     if (!date) return '';
@@ -270,15 +311,13 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
                 />
                 <ul className="parent-suggestions">
                   {filteredParents.slice(0, 5).map(p => (
-                    <li key={p.id} onClick={() => {
-                      setFormData({...formData, parentId: p.id});
-                      setParentSearch('');
-                      setShowParentSearch(false);
-                    }}>
-                      {p.title}
-                      <span className="parent-path">{p.path}</span>
-                    </li>
-                  ))}
+                                      <li key={p.id} onClick={() => {
+                                        setFormData({...formData, parentId: p.id});
+                                        setParentSearch('');
+                                        setShowParentSearch(false);
+                                      }} style={{ paddingLeft: `${p.level * 16 + 12}px` }}> {/* Indentation */}
+                                        {p.title}
+                                      </li>                  ))}
                   {filteredParents.length === 0 && <li>No tasks found</li>}
                 </ul>
                 <div className="parent-search-actions">
