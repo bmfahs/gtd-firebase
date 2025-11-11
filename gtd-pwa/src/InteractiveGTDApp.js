@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { db } from './firebase';
-import { doc, updateDoc, addDoc, collection, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, collection, serverTimestamp, deleteDoc, query, where, getDocs } from 'firebase/firestore';
 import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, ChevronDown } from 'lucide-react';
 import TaskDetailEditor from './EnhancedComponents';
 import VoiceInterface from './components/VoiceInterface'; // Moved to top
@@ -440,7 +440,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
         
         // Check if task matches filters
         const matchesSearch = !searchTerm || 
-          task.title.toLowerCase().includes(searchTerm.toLowerCase());
+          (task.title || '').toLowerCase().includes(searchTerm.toLowerCase());
         
         const matchesContext = !selectedContext || 
           task.context === selectedContext;
@@ -463,18 +463,70 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
 
   const filteredTasks = filterTasks(tasks);
 
+  const getOrCreateInboxId = async (userId) => {
+    const tasksCollectionRef = collection(db, 'tasks');
+    const q = query(tasksCollectionRef, 
+      where("userId", "==", userId), 
+      where("title", "==", "<Inbox>"),
+      where("parentId", "==", null) // Ensure it's a top-level Inbox
+    );
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+      return querySnapshot.docs[0].id;
+    } else {
+      // Create the Inbox task
+      const inboxTask = {
+        title: '<Inbox>',
+        userId: userId,
+        status: 'next_action',
+        importance: 3,
+        urgency: 3,
+        source: 'system', // Indicate it's a system-generated task
+        createdDate: serverTimestamp(),
+        modifiedDate: serverTimestamp(),
+        computedPriority: 0,
+        childCount: 0
+      };
+      const docRef = await addDoc(tasksCollectionRef, inboxTask);
+      return docRef.id;
+    }
+  };
+
   const handleTaskUpdate = async (update) => {
     console.log('Received task update from VoiceInterface:', update);
 
     try {
       switch (update.type) {
         case 'add':
-          await addDoc(collection(db, 'tasks'), {
+          console.log('Attempting to add task with data:', update.data);
+          let parentId = update.data.parentId;
+
+          // If parentId is undefined or an empty string, treat it as needing the Inbox
+          if (!parentId) {
+            parentId = await getOrCreateInboxId(user.uid);
+            console.log('Resolved default Inbox parentId:', parentId);
+          } else if (parentId === '<Inbox>') { // If AI explicitly suggested <Inbox>
+            parentId = await getOrCreateInboxId(user.uid);
+            console.log('Resolved explicit Inbox parentId:', parentId);
+          }
+          // If parentId is still '<Inbox>' here, it means getOrCreateInboxId failed or returned '<Inbox>'
+          // which should not happen. But as a fallback, ensure it's null for Firestore.
+          if (parentId === '<Inbox>') {
+              parentId = null;
+          }
+
+
+          const newTaskData = {
             ...update.data,
+            parentId: parentId, // Use the resolved parentId (can be null or an actual ID)
             userId: user.uid,
             createdDate: serverTimestamp(),
             modifiedDate: serverTimestamp(),
-          });
+          };
+          console.log('Final task data to be added:', newTaskData);
+          const docRef = await addDoc(collection(db, 'tasks'), newTaskData);
+          console.log('Task added successfully with ID:', docRef.id);
           break;
         case 'update':
           {
