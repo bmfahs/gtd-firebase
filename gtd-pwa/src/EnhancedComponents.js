@@ -581,7 +581,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
             list-style: none;
             padding: 0;
             margin: 0;
-            max-height: 150px;
+            max-height: 300px;
             overflow-y: auto;
           }
           .parent-suggestions li {
