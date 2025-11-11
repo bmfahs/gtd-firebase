@@ -21,6 +21,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
     parentId: task.parentId || null
   });
   const [parentSearch, setParentSearch] = useState('');
+  const [showParentSearch, setShowParentSearch] = useState(false); // New state
 
   // Flatten the tree of allTasks for searching, excluding the current task and its descendants
   const getFlattentenedTasks = (tasks) => {
@@ -233,40 +234,62 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
             </div>
           </div>
 
-          {/* Move Task Section */}
+          {/* Parent Task Selection */}
           <div className="form-group">
             <label>
               <Folder size={14} className="inline-icon" />
               Parent Task
             </label>
-            <div className="parent-task-display">
-              {currentParent ? currentParent.title : <em>None (Top-level task)</em>}
-              {currentParent && (
-                <button onClick={() => setFormData({...formData, parentId: null})} className="remove-parent-btn">
-                  Move to root
-                </button>
-              )}
+            <div className="parent-selection-area">
+              <div className="parent-display">
+                {currentParent ? currentParent.title : <em>None (Top-level task)</em>}
+              </div>
+              <div className="parent-actions">
+                {!showParentSearch && (
+                  <button type="button" onClick={() => setShowParentSearch(true)} className="btn-tertiary">
+                    Change Parent
+                  </button>
+                )}
+                {formData.parentId && (
+                  <button type="button" onClick={() => setFormData({...formData, parentId: null})} className="btn-tertiary">
+                    Remove Parent
+                  </button>
+                )}
+              </div>
             </div>
-            <input
-              type="text"
-              value={parentSearch}
-              onChange={e => setParentSearch(e.target.value)}
-              placeholder="Search for a new parent task..."
-              className="form-input"
-            />
-            {parentSearch && (
-              <ul className="parent-suggestions">
-                {filteredParents.slice(0, 5).map(p => (
-                  <li key={p.id} onClick={() => {
-                    setFormData({...formData, parentId: p.id});
+
+            {showParentSearch && (
+              <div className="parent-search-dropdown">
+                <input
+                  type="text"
+                  value={parentSearch}
+                  onChange={e => setParentSearch(e.target.value)}
+                  placeholder="Search for a new parent task..."
+                  className="form-input"
+                  autoFocus
+                />
+                <ul className="parent-suggestions">
+                  {filteredParents.slice(0, 5).map(p => (
+                    <li key={p.id} onClick={() => {
+                      setFormData({...formData, parentId: p.id});
+                      setParentSearch('');
+                      setShowParentSearch(false);
+                    }}>
+                      {p.title}
+                      <span className="parent-path">{p.path}</span>
+                    </li>
+                  ))}
+                  {filteredParents.length === 0 && <li>No tasks found</li>}
+                </ul>
+                <div className="parent-search-actions">
+                  <button type="button" onClick={() => {
                     setParentSearch('');
-                  }}>
-                    {p.title}
-                    <span className="parent-path">{p.path}</span>
-                  </li>
-                ))}
-                {filteredParents.length === 0 && <li>No tasks found</li>}
-              </ul>
+                    setShowParentSearch(false);
+                  }} className="btn-secondary">
+                    Cancel
+                  </button>
+                </div>
+              </div>
             )}
           </div>
 
@@ -329,6 +352,8 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
             max-height: 90vh;
             overflow-y: auto;
             position: relative;
+            display: flex;
+            flex-direction: column;
           }
 
           .modal-header {
@@ -363,6 +388,8 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
 
           .task-form {
             padding: 24px;
+            flex-grow: 1;
+            overflow-y: auto;
           }
 
           .form-group {
@@ -401,7 +428,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
           .form-input:focus, .form-textarea:focus, .form-select:focus {
             outline: none;
             border-color: #3b82f6;
-            ring: 2px solid #dbeafe;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); /* ring-blue-200 */
           }
 
           .form-textarea {
@@ -427,11 +454,15 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
             gap: 12px;
             justify-content: flex-end;
             margin-top: 24px;
-            padding-top: 16px;
+            padding: 16px 24px; /* Added padding for consistency */
             border-top: 1px solid #e5e7eb;
+            position: sticky;
+            bottom: 0;
+            background: white;
+            z-index: 10;
           }
 
-          .btn-primary, .btn-secondary {
+          .btn-primary, .btn-secondary, .btn-tertiary {
             padding: 10px 20px;
             border-radius: 6px;
             font-size: 14px;
@@ -459,7 +490,19 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
           .btn-secondary:hover {
             background: #f3f4f6;
           }
-          .parent-task-display {
+
+          .btn-tertiary {
+            background: none;
+            border: 1px solid transparent;
+            color: #3b82f6;
+          }
+
+          .btn-tertiary:hover {
+            background: #e0f2fe; /* blue-50 */
+            border-color: #bfdbfe; /* blue-200 */
+          }
+
+          .parent-selection-area {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -470,19 +513,35 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
             margin-bottom: 8px;
             font-size: 14px;
           }
-          .remove-parent-btn {
-            background: none;
-            border: none;
-            color: #3b82f6;
-            cursor: pointer;
-            font-size: 12px;
+
+          .parent-display {
+            flex-grow: 1;
           }
+
+          .parent-actions {
+            display: flex;
+            gap: 8px;
+          }
+
+          .parent-search-dropdown {
+            position: relative; /* For positioning suggestions */
+            margin-top: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          }
+
+          .parent-search-dropdown .form-input {
+            border: none;
+            border-bottom: 1px solid #e5e7eb;
+            border-radius: 6px 6px 0 0;
+          }
+
           .parent-suggestions {
             list-style: none;
             padding: 0;
-            margin: 4px 0 0;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
+            margin: 0;
             max-height: 150px;
             overflow-y: auto;
           }
@@ -502,6 +561,13 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
             font-size: 11px;
             color: #6b7280;
             margin-top: 2px;
+          }
+
+          .parent-search-actions {
+            display: flex;
+            justify-content: flex-end;
+            padding: 8px 12px;
+            border-top: 1px solid #e5e7eb;
           }
         `}</style>
       </div>
