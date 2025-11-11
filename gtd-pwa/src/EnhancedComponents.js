@@ -310,7 +310,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
                   autoFocus
                 />
                 <ul className="parent-suggestions">
-                  {filteredParents.slice(0, 5).map(p => (
+                  {filteredParents.map(p => (
                                       <li key={p.id} onClick={() => {
                                         setFormData({...formData, parentId: p.id});
                                         setParentSearch('');
