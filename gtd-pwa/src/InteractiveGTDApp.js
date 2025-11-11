@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { db } from './firebase';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, deleteDoc, query, where, getDocs } from 'firebase/firestore';
-import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, ChevronDown, Inbox, ListTodo, FolderTree, Clock } from 'lucide-react';
+import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, ChevronDown, Inbox, ListTodo, FolderTree, Clock, Mic } from 'lucide-react';
 import TaskDetailEditor from './EnhancedComponents';
 import VoiceInterface from './components/VoiceInterface';
 
@@ -436,6 +436,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
   const [filter, setFilter] = useState('all'); // all, active, completed
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedContext, setSelectedContext] = useState(null);
+  const [showVoiceInterface, setShowVoiceInterface] = useState(false); // New state
 
   // Extract unique contexts from tasks
   const getUniqueContexts = (taskList) => {
@@ -704,8 +705,17 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
             {currentView === 'alltasks' && 'All Tasks'}
             {currentView === 'recent' && 'Recent'}
           </h1>
-          <div className="header-stats">
-            <span>{filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}</span>
+          <div className="header-actions">
+            <button
+              onClick={() => setShowVoiceInterface(!showVoiceInterface)}
+              className={`voice-toggle-button ${showVoiceInterface ? 'active' : ''}`}
+              title={showVoiceInterface ? 'Hide Voice Assistant' : 'Show Voice Assistant'}
+            >
+              <Mic size={20} />
+            </button>
+            <div className="header-stats">
+              <span>{filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}</span>
+            </div>
           </div>
         </div>
 
@@ -785,7 +795,9 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
       </div>
 
       {/* Voice Interface */}
-      <VoiceInterface user={user} tasks={tasks} onTaskUpdate={handleTaskUpdate} />
+      {showVoiceInterface && (
+        <VoiceInterface user={user} tasks={tasks} onTaskUpdate={handleTaskUpdate} />
+      )}
 
       <style jsx>{`
         .gtd-app {
@@ -862,6 +874,35 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           margin-bottom: 20px;
           padding-bottom: 20px;
           border-bottom: 2px solid #e5e7eb;
+        }
+
+        .header-actions {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .voice-toggle-button {
+          background: none;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          padding: 8px;
+          cursor: pointer;
+          color: #6b7280;
+          display: flex;
+          align-items: center;
+          transition: all 0.2s;
+        }
+
+        .voice-toggle-button:hover {
+          background: #f3f4f6;
+          color: #1f2937;
+        }
+
+        .voice-toggle-button.active {
+          background: #dbeafe;
+          color: #3b82f6;
+          border-color: #3b82f6;
         }
 
         .gtd-header h1 {
