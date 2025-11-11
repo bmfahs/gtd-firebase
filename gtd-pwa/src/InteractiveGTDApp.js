@@ -220,7 +220,8 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, a
           ) : (
             <span
               className={`task-title ${isCompleted ? 'line-through' : ''}`}
-              onDoubleClick={() => setIsEditing(true)}
+              onClick={() => setIsDetailEditorOpen(true)} // Open detail editor on single click
+              onDoubleClick={() => setIsEditing(true)} // Keep inline editing on double click
             >
               {task.title}
             </span>
