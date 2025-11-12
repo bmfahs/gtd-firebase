@@ -569,3 +569,12 @@ exports.healthCheck = onRequest((req, res) => {
     version: '1.0.0'
   });
 });
+
+// ============================================================================ 
+// APPS SCRIPT SUPPORT FUNCTIONS
+// ============================================================================ 
+
+const { addEmailTask, getExtensionAuth } = require('./addEmailTask');
+exports.addEmailTask = addEmailTask;
+exports.getExtensionAuth = getExtensionAuth;
+
