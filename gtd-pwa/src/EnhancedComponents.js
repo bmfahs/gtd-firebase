@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { serverTimestamp } from 'firebase/firestore';
 import { 
   Calendar, Clock, Zap, Star, Tag, FolderOpen, Folder
@@ -37,7 +37,7 @@ const getFlattentenedTasksForParentSelection = (tasksToFlatten, currentTaskId, e
 };
 
 // Task Detail Editor Modal
-const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
+const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startWithParentSearchOpen = false }) => {
   const [formData, setFormData] = useState({
     title: task.title || '',
     description: task.description || '',
@@ -53,8 +53,15 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
     parentId: task.parentId || null
   });
   const [parentSearch, setParentSearch] = useState('');
-  const [showParentSearch, setShowParentSearch] = useState(false); // New state
-  const [isEditingDescription, setIsEditingDescription] = useState(false); // New state for description editing
+  const [showParentSearch, setShowParentSearch] = useState(false);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [highlightedParentIndex, setHighlightedParentIndex] = useState(-1);
+
+  useEffect(() => {
+    if (startWithParentSearchOpen) {
+      setShowParentSearch(true);
+    }
+  }, [startWithParentSearchOpen]);
 
   // Memoize the set of descendant IDs for the current task
   const currentTaskDescendantIds = useMemo(() => getAllDescendantIds(task), [task]);
@@ -92,11 +99,37 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
 
   const currentParent = task.parentId ? potentialParentsMap.get(task.parentId) : null;
 
+  useEffect(() => {
+    setHighlightedParentIndex(-1);
+  }, [filteredParents]);
+
   function formatDateForInput(date) {
     if (!date) return '';
     const d = date.toDate ? date.toDate() : new Date(date);
     return d.toISOString().split('T')[0];
   }
+
+  const handleParentSearchKeyDown = (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedParentIndex(prev => Math.min(prev + 1, filteredParents.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedParentIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (highlightedParentIndex >= 0 && filteredParents[highlightedParentIndex]) {
+        const selectedParent = filteredParents[highlightedParentIndex];
+        setFormData({ ...formData, parentId: selectedParent.id });
+        setParentSearch('');
+        setShowParentSearch(false);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setParentSearch('');
+      setShowParentSearch(false);
+    }
+  };
 
   const handleSubmit = async () => {
     if (!formData.title.trim()) {
@@ -329,19 +362,26 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
                   type="text"
                   value={parentSearch}
                   onChange={e => setParentSearch(e.target.value)}
+                  onKeyDown={handleParentSearchKeyDown}
                   placeholder="Search for a new parent task..."
                   className="form-input"
                   autoFocus
                 />
                 <ul className="parent-suggestions">
-                  {filteredParents.map(p => (
-                                      <li key={p.id} onClick={() => {
-                                        setFormData({...formData, parentId: p.id});
-                                        setParentSearch('');
-                                        setShowParentSearch(false);
-                                      }} style={{ paddingLeft: `${p.level * 16 + 12}px` }}> {/* Indentation */}
-                                        {p.title}
-                                      </li>                  ))}
+                  {filteredParents.map((p, index) => (
+                    <li 
+                      key={p.id} 
+                      className={index === highlightedParentIndex ? 'highlighted' : ''}
+                      onClick={() => {
+                        setFormData({...formData, parentId: p.id});
+                        setParentSearch('');
+                        setShowParentSearch(false);
+                      }} 
+                      style={{ paddingLeft: `${p.level * 16 + 12}px` }}
+                    >
+                      {p.title}
+                    </li>
+                  ))}
                   {filteredParents.length === 0 && <li>No tasks found</li>}
                 </ul>
                 <div className="parent-search-actions">
@@ -634,6 +674,9 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
           }
           .parent-suggestions li:hover {
             background: #f3f4f6;
+          }
+          .parent-suggestions li.highlighted {
+            background: #dbeafe;
           }
           .parent-path {
             display: block;

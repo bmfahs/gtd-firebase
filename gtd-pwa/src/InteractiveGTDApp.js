@@ -452,6 +452,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
   const [quickAddAutoFocus, setQuickAddAutoFocus] = useState(false);
   const [sequenceKey, setSequenceKey] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
+  const [startParentSearchOpen, setStartParentSearchOpen] = useState(false);
   
   const searchInputRef = useRef(null);
 
@@ -507,7 +508,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
         return allFlatWithDates
           .filter(t => t.modifiedDate)
           .sort((a, b) => {
-            const dateA = a.modifiedDate.toDate ? a.modifiedDate.toDate() : new Date(a.modifiedDate);
+            const dateA = a.modifiedDate.toDate ? date.toDate() : new Date(a.modifiedDate);
             const dateB = b.modifiedDate.toDate ? b.modifiedDate.toDate() : new Date(b.modifiedDate);
             return dateB - dateA;
           })
@@ -686,6 +687,13 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
         }
         break;
         
+      case 'move':
+        if (task) {
+          setEditingTask(task);
+          setStartParentSearchOpen(true);
+        }
+        break;
+        
       case 'toggleComplete':
         if (task) {
           const taskRef = doc(db, 'tasks', task.id);
@@ -728,10 +736,6 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           });
           onUpdate();
         }
-        break;
-        
-      case 'move':
-        console.log('Move task:', task?.title);
         break;
         
       case 'setContext':
@@ -793,6 +797,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
       const taskRef = doc(db, 'tasks', editingTask.id);
       await updateDoc(taskRef, updates);
       setEditingTask(null);
+      setStartParentSearchOpen(false);
       onUpdate?.();
     } catch (error) {
       console.error('Error updating task from editor:', error);
@@ -812,10 +817,14 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
       {editingTask && (
         <TaskDetailEditor
           task={editingTask}
-          onClose={() => setEditingTask(null)}
+          onClose={() => {
+            setEditingTask(null);
+            setStartParentSearchOpen(false);
+          }}
           onSave={handleSaveFromEditor}
           allContexts={allContexts}
           allTasks={tasks}
+          startWithParentSearchOpen={startParentSearchOpen}
         />
       )}
 
@@ -960,7 +969,6 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
               {currentView === 'inbox' && 'Inbox is empty. Press c to add a task!'}
               {currentView === 'todo' && 'No tasks to do. Great job!'}
               {currentView === 'alltasks' && 'No tasks found. Press c to add one!'}
-              {currentView === 'recent' && 'No recent activity.'}
             </p>
           ) : (
             filteredTasks.map((task, index) => (
@@ -969,7 +977,10 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
                 task={task}
                 userId={user.uid}
                 onUpdate={onUpdate}
-                onEdit={() => setEditingTask(task)}
+                onEdit={() => {
+                  setEditingTask(task);
+                  setStartParentSearchOpen(false);
+                }}
                 allContexts={allContexts}
                 allTasks={tasks}
                 showHierarchy={showHierarchy}
