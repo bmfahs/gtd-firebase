@@ -200,6 +200,12 @@ export const useKeyboardShortcuts = ({
           onTaskAction('edit', selectedTask);
         }
         break;
+      case 'm':
+        if (event.ctrlKey && selectedTask) {
+          event.preventDefault();
+          onTaskAction('move', selectedTask);
+        }
+        break;
       case 'd':
         if (selectedTask) {
           event.preventDefault();
