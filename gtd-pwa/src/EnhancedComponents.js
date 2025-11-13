@@ -4,6 +4,9 @@ import {
   Calendar, Clock, Zap, Star, Tag, FolderOpen, Folder
 }
 from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
+import rehypeExternalLinks from 'rehype-external-links';
 
 // Helper to get all descendants of a task (used for exclusion)
 const getAllDescendantIds = (node) => {
@@ -51,6 +54,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
   });
   const [parentSearch, setParentSearch] = useState('');
   const [showParentSearch, setShowParentSearch] = useState(false); // New state
+  const [isEditingDescription, setIsEditingDescription] = useState(false); // New state for description editing
 
   // Memoize the set of descendant IDs for the current task
   const currentTaskDescendantIds = useMemo(() => getAllDescendantIds(task), [task]);
@@ -143,13 +147,33 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
           {/* Description */}
           <div className="form-group">
             <label>Description</label>
-            <textarea
-              value={formData.description}
-              onChange={e => setFormData({...formData, description: e.target.value})}
-              rows={3}
-              placeholder="Add notes or details..."
-              className="form-textarea"
-            />
+            {isEditingDescription ? (
+              <textarea
+                value={formData.description}
+                onChange={e => setFormData({...formData, description: e.target.value})}
+                onBlur={() => setIsEditingDescription(false)}
+                rows={5} // Increased rows for better editing experience
+                placeholder="Add notes or details..."
+                className="form-textarea"
+                autoFocus
+              />
+            ) : (
+              <div 
+                className="description-display" 
+                onClick={() => setIsEditingDescription(true)}
+                title="Click to edit description"
+              >
+                {formData.description ? (
+                  <ReactMarkdown 
+                    rehypePlugins={[rehypeRaw, [rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }]]}
+                  >
+                    {formData.description}
+                  </ReactMarkdown>
+                ) : (
+                  <em className="text-gray-500">Click to add description...</em>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Importance and Urgency */}
