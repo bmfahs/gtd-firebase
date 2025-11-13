@@ -497,6 +497,22 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks }) => {
           .form-textarea {
             resize: vertical;
           }
+          
+          .description-display {
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            padding: 8px 12px;
+            min-height: 60px;
+            cursor: pointer;
+            background: #f9fafb;
+          }
+          .description-display:hover {
+            background: #f3f4f6;
+            border-color: #a5b4fc;
+          }
+          .text-gray-500 {
+            color: #6b7280;
+          }
 
           .checkbox-label {
             display: flex;
