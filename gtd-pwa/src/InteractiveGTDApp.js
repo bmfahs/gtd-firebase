@@ -1,19 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { db } from './firebase';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, deleteDoc, query, where, getDocs } from 'firebase/firestore';
 import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, ChevronDown, Inbox, ListTodo, FolderTree, Clock, Mic } from 'lucide-react';
 import TaskDetailEditor from './EnhancedComponents';
 import VoiceInterface from './components/VoiceInterface';
+import KeyboardShortcuts, { useKeyboardShortcuts } from './components/KeyboardShortcuts';
 
 // Interactive Task Item Component
-const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, allTasks, showHierarchy = true }) => {
+const InteractiveTaskItem = ({ 
+  task, 
+  userId, 
+  onUpdate, 
+  onEdit,
+  level = 0, 
+  allContexts, 
+  allTasks, 
+  showHierarchy = true,
+  isSelected = false,
+  taskIndex = -1
+}) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(task.title);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showAddChild, setShowAddChild] = useState(false);
   const [newChildTitle, setNewChildTitle] = useState('');
   const [isHovered, setIsHovered] = useState(false);
-  const [isDetailEditorOpen, setIsDetailEditorOpen] = useState(false);
 
   const hasChildren = task.children && task.children.length > 0;
   const isCompleted = task.status === 'done';
@@ -55,19 +66,6 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, a
     } catch (error) {
       console.error('Error updating task:', error);
       alert('Failed to update task');
-    }
-  };
-
-  // Save from detail editor
-  const handleSaveFromEditor = async (updates) => {
-    try {
-      const taskRef = doc(db, 'tasks', task.id);
-      await updateDoc(taskRef, updates);
-      setIsDetailEditorOpen(false);
-      onUpdate?.();
-    } catch (error) {
-      console.error('Error updating task from editor:', error);
-      alert('Failed to save changes');
     }
   };
 
@@ -169,8 +167,9 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, a
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         style={{ marginLeft: showHierarchy ? `${level * 24}px` : '0px' }}
+        data-task-index={taskIndex}
       >
-        <div className={`task-item ${isCompleted ? 'completed' : ''}`}>
+        <div className={`task-item ${isCompleted ? 'completed' : ''} ${isSelected ? 'selected' : ''}`}>
           {/* Drag Handle */}
           <div className="drag-handle" style={{ opacity: isHovered ? 1 : 0.3 }}>
             <GripVertical size={16} />
@@ -220,15 +219,15 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, a
           ) : (
             <span
               className={`task-title ${isCompleted ? 'line-through' : ''}`}
-              onClick={() => setIsDetailEditorOpen(true)} // Open detail editor on single click
-              onDoubleClick={() => setIsEditing(true)} // Keep inline editing on double click
+              onClick={onEdit}
+              onDoubleClick={() => setIsEditing(true)}
             >
               {task.title}
             </span>
           )}
 
           {/* Task Metadata */}
-          <div className="task-metadata" style={{ opacity: isHovered ? 1 : 0.5 }}>
+          <div className="task-metadata" style={{ opacity: isHovered || isSelected ? 1 : 0.5 }}>
             {task.context && (
               <span className="task-context">{task.context}</span>
             )}
@@ -244,12 +243,12 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, a
           </div>
 
           {/* Action Buttons */}
-          {isHovered && !isEditing && (
+          {(isHovered || isSelected) && !isEditing && (
             <div className="task-actions">
               <button
-                onClick={() => setIsDetailEditorOpen(true)}
+                onClick={onEdit}
                 className="action-btn"
-                title="Edit task details"
+                title="Edit task details (o)"
               >
                 <Edit2 size={14} />
               </button>
@@ -257,7 +256,7 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, a
                 <button
                   onClick={() => setShowAddChild(!showAddChild)}
                   className="action-btn"
-                  title="Add subtask"
+                  title="Add subtask (Shift+A)"
                 >
                   <Plus size={14} />
                 </button>
@@ -265,10 +264,17 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, a
               <button
                 onClick={handleDelete}
                 className="action-btn delete-btn"
-                title="Delete task"
+                title="Delete task (d)"
               >
                 <Trash2 size={14} />
               </button>
+            </div>
+          )}
+
+          {/* Keyboard hint for selected task */}
+          {isSelected && (
+            <div className="keyboard-hint">
+              Press ? for help
             </div>
           )}
         </div>
@@ -299,40 +305,42 @@ const InteractiveTaskItem = ({ task, userId, onUpdate, level = 0, allContexts, a
         {/* Render Children (if not collapsed and showing hierarchy) */}
         {showHierarchy && hasChildren && !isCollapsed && (
           <div className="task-children-container">
-            {task.children.map(child => (
+            {task.children.map((child, idx) => (
               <InteractiveTaskItem
                 key={child.id}
                 task={child}
                 userId={userId}
                 onUpdate={onUpdate}
+                onEdit={() => onEdit(child)}
                 level={level + 1}
                 allContexts={allContexts}
                 allTasks={allTasks}
                 showHierarchy={showHierarchy}
+                isSelected={false}
+                taskIndex={-1}
               />
             ))}
           </div>
         )}
       </div>
-      {isDetailEditorOpen && (
-        <TaskDetailEditor
-          task={task}
-          onClose={() => setIsDetailEditorOpen(false)}
-          onSave={handleSaveFromEditor}
-          allContexts={allContexts}
-          allTasks={allTasks}
-        />
-      )}
     </>
   );
 };
 
 // Quick Add Task Component
-const QuickAddTask = ({ userId, onAdd, parentId = null, level = 0, allContexts }) => {
+const QuickAddTask = ({ userId, onAdd, parentId = null, level = 0, allContexts, autoFocus = false }) => {
   const [title, setTitle] = useState('');
   const [isExpanded, setIsExpanded] = useState(false);
   const [context, setContext] = useState('');
   const [timeEstimate, setTimeEstimate] = useState('');
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (autoFocus && inputRef.current) {
+      inputRef.current.focus();
+      setIsExpanded(true);
+    }
+  }, [autoFocus]);
 
   const handleAdd = async () => {
     if (title.trim() === '') return;
@@ -375,6 +383,7 @@ const QuickAddTask = ({ userId, onAdd, parentId = null, level = 0, allContexts }
       <div className="quick-add-main">
         <Plus size={20} className="text-blue-600" />
         <input
+          ref={inputRef}
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -386,7 +395,7 @@ const QuickAddTask = ({ userId, onAdd, parentId = null, level = 0, allContexts }
               setIsExpanded(false);
             }
           }}
-          placeholder="Add new task..."
+          placeholder="Add new task... (press c)"
           className="quick-add-input"
         />
       </div>
@@ -433,11 +442,18 @@ const QuickAddTask = ({ userId, onAdd, parentId = null, level = 0, allContexts }
 
 // Main App Component with Interactive Features
 const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
-  const [currentView, setCurrentView] = useState('inbox'); // inbox, todo, alltasks, recent
-  const [filter, setFilter] = useState('all'); // all, active, completed
+  const [currentView, setCurrentView] = useState('inbox');
+  const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedContext, setSelectedContext] = useState(null);
-  const [showVoiceInterface, setShowVoiceInterface] = useState(false); // New state
+  const [showVoiceInterface, setShowVoiceInterface] = useState(false);
+  const [selectedTaskIndex, setSelectedTaskIndex] = useState(-1);
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+  const [quickAddAutoFocus, setQuickAddAutoFocus] = useState(false);
+  const [sequenceKey, setSequenceKey] = useState(null);
+  const [editingTask, setEditingTask] = useState(null);
+  
+  const searchInputRef = useRef(null);
 
   // Extract unique contexts from tasks
   const getUniqueContexts = (taskList) => {
@@ -474,22 +490,19 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
     switch (currentView) {
       case 'inbox':
         const inboxTask = tasks.find(t => t.title === '<Inbox>' && !t.parentId);
-        return inboxTask ? inboxTask.children.filter(child => child.status !== 'done') : [];
+        return inboxTask ? (inboxTask.children || []).filter(child => child.status !== 'done') : [];
       
       case 'todo':
-        // Flatten all tasks, exclude projects, incomplete only, sort by importance
         const allFlat = flattenTasks(tasks);
         return allFlat
           .filter(t => !t.isProject && t.status !== 'done')
           .sort((a, b) => {
-            // Sort by computed priority (or importance + urgency)
             const priorityA = a.computedPriority || ((a.importance || 3) * 3 + (a.urgency || 3) * 2.5);
             const priorityB = b.computedPriority || ((b.importance || 3) * 3 + (b.urgency || 3) * 2.5);
             return priorityB - priorityA;
           });
       
       case 'recent':
-        // All tasks sorted by modified date
         const allFlatWithDates = flattenTasks(tasks);
         return allFlatWithDates
           .filter(t => t.modifiedDate)
@@ -498,18 +511,16 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
             const dateB = b.modifiedDate.toDate ? b.modifiedDate.toDate() : new Date(b.modifiedDate);
             return dateB - dateA;
           })
-          .slice(0, 50); // Limit to 50 most recent
+          .slice(0, 50);
       
       case 'alltasks':
       default:
-        // Default hierarchical view of incomplete tasks
         return tasks;
     }
   };
 
   // Filter tasks
   const filterTasks = (taskList) => {
-    // For flat views, apply filters directly
     if (currentView === 'todo' || currentView === 'recent') {
       return taskList.filter(task => {
         const matchesSearch = !searchTerm || 
@@ -526,13 +537,10 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
       });
     }
 
-    // For hierarchical views
     return taskList
       .map(task => {
-        // Filter children recursively
         const filteredChildren = task.children ? filterTasks(task.children) : [];
         
-        // Check if task matches filters
         const matchesSearch = !searchTerm || 
           (task.title || '').toLowerCase().includes(searchTerm.toLowerCase());
         
@@ -546,7 +554,6 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
         if (matchesSearch && matchesContext && matchesStatus) {
           return { ...task, children: filteredChildren };
         } else if (filteredChildren.length > 0) {
-          // Include parent if children match
           return { ...task, children: filteredChildren };
         }
         
@@ -557,10 +564,13 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
 
   const viewTasks = getViewTasks();
   const filteredTasks = filterTasks(viewTasks);
+  const flatFilteredTasks = currentView === 'todo' || currentView === 'recent' 
+    ? filteredTasks 
+    : flattenTasks(filteredTasks);
 
-  // Determine if we should show hierarchy
   const showHierarchy = currentView === 'alltasks' || currentView === 'inbox';
 
+  // Get or create Inbox
   const getOrCreateInboxId = async (userId) => {
     const tasksCollectionRef = collection(db, 'tasks');
     const q = query(tasksCollectionRef, 
@@ -590,24 +600,22 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
     }
   };
 
+  // Handle task updates from voice
   const handleTaskUpdate = async (update) => {
-    console.log('Received task update from VoiceInterface:', update);
+    console.log('Received task update:', update);
 
     try {
       switch (update.type) {
         case 'add':
-          console.log('Attempting to add task with data:', update.data);
           let parentId = update.data.parentId;
 
           if (!parentId) {
             parentId = await getOrCreateInboxId(user.uid);
-            console.log('Resolved default Inbox parentId:', parentId);
           } else if (parentId === '<Inbox>') {
             parentId = await getOrCreateInboxId(user.uid);
-            console.log('Resolved explicit Inbox parentId:', parentId);
           }
           if (parentId === '<Inbox>') {
-              parentId = null;
+            parentId = null;
           }
 
           const newTaskData = {
@@ -617,9 +625,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
             createdDate: serverTimestamp(),
             modifiedDate: serverTimestamp(),
           };
-          console.log('Final task data to be added:', newTaskData);
-          const docRef = await addDoc(collection(db, 'tasks'), newTaskData);
-          console.log('Task added successfully with ID:', docRef.id);
+          await addDoc(collection(db, 'tasks'), newTaskData);
           break;
         case 'update':
           {
@@ -653,12 +659,173 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
       }
       onUpdate();
     } catch (error) {
-      console.error('Error processing voice command action:', error);
+      console.error('Error processing task update:', error);
+    }
+  };
+
+  // Handle keyboard shortcuts actions
+  const handleTaskAction = useCallback(async (action, task, value) => {
+    console.log('Task action:', action, task, value);
+    
+    switch (action) {
+      case 'create':
+        setQuickAddAutoFocus(true);
+        setTimeout(() => setQuickAddAutoFocus(false), 100);
+        break;
+        
+      case 'addSubtask':
+        if (task) {
+          // Trigger add child for selected task
+          console.log('Add subtask to:', task.title);
+        }
+        break;
+        
+      case 'edit':
+        if (task) {
+          setEditingTask(task);
+        }
+        break;
+        
+      case 'toggleComplete':
+        if (task) {
+          const taskRef = doc(db, 'tasks', task.id);
+          const newStatus = task.status === 'done' ? 'next_action' : 'done';
+          await updateDoc(taskRef, {
+            status: newStatus,
+            completedDate: newStatus === 'done' ? new Date() : null,
+            modifiedDate: serverTimestamp()
+          });
+          onUpdate();
+        }
+        break;
+        
+      case 'delete':
+        if (task) {
+          if (window.confirm(`Delete "${task.title}"?`)) {
+            await deleteDoc(doc(db, 'tasks', task.id));
+            onUpdate();
+          }
+        }
+        break;
+        
+      case 'setImportance':
+        if (task && value) {
+          const taskRef = doc(db, 'tasks', task.id);
+          await updateDoc(taskRef, {
+            importance: value,
+            modifiedDate: serverTimestamp()
+          });
+          onUpdate();
+        }
+        break;
+        
+      case 'setUrgency':
+        if (task && value) {
+          const taskRef = doc(db, 'tasks', task.id);
+          await updateDoc(taskRef, {
+            urgency: value,
+            modifiedDate: serverTimestamp()
+          });
+          onUpdate();
+        }
+        break;
+        
+      case 'move':
+        console.log('Move task:', task?.title);
+        break;
+        
+      case 'setContext':
+        console.log('Set context for:', task?.title);
+        break;
+        
+      case 'setDueDate':
+        console.log('Set due date for:', task?.title);
+        break;
+        
+      case 'collapse':
+      case 'expand':
+        console.log(action, 'task:', task?.title);
+        break;
+        
+      case 'aiAnalysis':
+        console.log('AI analysis for:', task?.title);
+        break;
+        
+      case 'aiResearch':
+        console.log('AI research for:', task?.title);
+        break;
+        
+      case 'cancel':
+        setSelectedTaskIndex(-1);
+        break;
+        
+      default:
+        console.log('Unknown action:', action);
+    }
+  }, [onUpdate, user]);
+
+  // Initialize keyboard shortcuts
+  useKeyboardShortcuts({
+    currentView,
+    setCurrentView,
+    selectedTaskIndex,
+    setSelectedTaskIndex,
+    flatTasks: flatFilteredTasks,
+    onTaskAction: handleTaskAction,
+    onToggleVoice: () => setShowVoiceInterface(!showVoiceInterface),
+    onRefresh: onUpdate,
+    searchInputRef,
+    setFilter,
+    setShowShortcutsHelp
+  });
+
+  // Show sequence indicator
+  useEffect(() => {
+    if (sequenceKey) {
+      const timer = setTimeout(() => setSequenceKey(null), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [sequenceKey]);
+
+  const handleSaveFromEditor = async (updates) => {
+    if (!editingTask) return;
+    try {
+      const taskRef = doc(db, 'tasks', editingTask.id);
+      await updateDoc(taskRef, updates);
+      setEditingTask(null);
+      onUpdate?.();
+    } catch (error) {
+      console.error('Error updating task from editor:', error);
+      alert('Failed to save changes');
     }
   };
 
   return (
     <div className="gtd-app">
+      {/* Keyboard Shortcuts Help */}
+      <KeyboardShortcuts 
+        isOpen={showShortcutsHelp} 
+        onClose={() => setShowShortcutsHelp(false)} 
+      />
+
+      {/* Task Detail Editor */}
+      {editingTask && (
+        <TaskDetailEditor
+          task={editingTask}
+          onClose={() => setEditingTask(null)}
+          onSave={handleSaveFromEditor}
+          allContexts={allContexts}
+          allTasks={tasks}
+        />
+      )}
+
+      {/* Sequence Indicator */}
+      {sequenceKey && (
+        <div className="sequence-indicator">
+          Waiting for key after <kbd>{sequenceKey}</kbd>
+        </div>
+      )}
+
       {/* Left Sidebar Navigation */}
       <div className="gtd-sidebar">
         <div className="sidebar-section">
@@ -708,9 +875,16 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           </h1>
           <div className="header-actions">
             <button
+              onClick={() => setShowShortcutsHelp(true)}
+              className="keyboard-help-button"
+              title="Keyboard shortcuts (?)"
+            >
+              ?
+            </button>
+            <button
               onClick={() => setShowVoiceInterface(!showVoiceInterface)}
               className={`voice-toggle-button ${showVoiceInterface ? 'active' : ''}`}
-              title={showVoiceInterface ? 'Hide Voice Assistant' : 'Show Voice Assistant'}
+              title={showVoiceInterface ? 'Hide Voice Assistant (v)' : 'Show Voice Assistant (v)'}
             >
               <Mic size={20} />
             </button>
@@ -723,10 +897,11 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
         {/* Filters & Search */}
         <div className="gtd-filters">
           <input
+            ref={searchInputRef}
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search tasks..."
+            placeholder="Search tasks... (press /)"
             className="search-input"
           />
 
@@ -734,18 +909,21 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
             <button
               onClick={() => setFilter('all')}
               className={filter === 'all' ? 'active' : ''}
+              title="f then a"
             >
               All
             </button>
             <button
               onClick={() => setFilter('active')}
               className={filter === 'active' ? 'active' : ''}
+              title="f then o"
             >
               Active
             </button>
             <button
               onClick={() => setFilter('completed')}
               className={filter === 'completed' ? 'active' : ''}
+              title="f then c"
             >
               Completed
             </button>
@@ -765,30 +943,38 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           )}
         </div>
 
-        {/* Quick Add - only show for inbox and alltasks */}
+        {/* Quick Add */}
         {(currentView === 'inbox' || currentView === 'alltasks') && (
-          <QuickAddTask userId={user.uid} onAdd={onUpdate} allContexts={allContexts} />
+          <QuickAddTask 
+            userId={user.uid} 
+            onAdd={onUpdate} 
+            allContexts={allContexts}
+            autoFocus={quickAddAutoFocus}
+          />
         )}
 
         {/* Task List */}
         <div className="task-list">
           {filteredTasks.length === 0 ? (
             <p className="empty-state">
-              {currentView === 'inbox' && 'Inbox is empty. Add tasks to get started!'}
+              {currentView === 'inbox' && 'Inbox is empty. Press c to add a task!'}
               {currentView === 'todo' && 'No tasks to do. Great job!'}
-              {currentView === 'alltasks' && 'No tasks found. Add one above!'}
+              {currentView === 'alltasks' && 'No tasks found. Press c to add one!'}
               {currentView === 'recent' && 'No recent activity.'}
             </p>
           ) : (
-            filteredTasks.map(task => (
+            filteredTasks.map((task, index) => (
               <InteractiveTaskItem
                 key={task.id}
                 task={task}
                 userId={user.uid}
                 onUpdate={onUpdate}
+                onEdit={() => setEditingTask(task)}
                 allContexts={allContexts}
                 allTasks={tasks}
                 showHierarchy={showHierarchy}
+                isSelected={index === selectedTaskIndex}
+                taskIndex={index}
               />
             ))
           )}
@@ -846,6 +1032,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           color: #4b5563;
           transition: all 0.2s;
           text-align: left;
+          position: relative;
         }
 
         .nav-item:hover {
@@ -881,6 +1068,28 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           display: flex;
           align-items: center;
           gap: 12px;
+        }
+
+        .keyboard-help-button {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          border: 1px solid #d1d5db;
+          background: white;
+          color: #6b7280;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+
+        .keyboard-help-button:hover {
+          background: #f3f4f6;
+          color: #1f2937;
+          border-color: #9ca3af;
         }
 
         .voice-toggle-button {
@@ -969,6 +1178,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
 
         .task-item-container {
           margin-bottom: 4px;
+          position: relative;
         }
 
         .task-item {
@@ -980,6 +1190,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           border: 1px solid #e5e7eb;
           border-radius: 6px;
           transition: all 0.2s;
+          position: relative;
         }
 
         .task-item:hover {
@@ -989,6 +1200,23 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
 
         .task-item.completed {
           opacity: 0.6;
+        }
+
+        .task-item.selected {
+          background: #eff6ff !important;
+          border-color: #3b82f6 !important;
+          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        .task-item.selected::before {
+          content: '';
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 4px;
+          background: #3b82f6;
+          border-radius: 6px 0 0 6px;
         }
 
         .drag-handle {
@@ -1024,6 +1252,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           flex: 1;
           font-size: 15px;
           color: #1f2937;
+          cursor: pointer;
         }
 
         .task-title.line-through {
