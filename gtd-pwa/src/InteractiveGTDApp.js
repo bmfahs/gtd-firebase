@@ -508,7 +508,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
         return allFlatWithDates
           .filter(t => t.modifiedDate)
           .sort((a, b) => {
-            const dateA = a.modifiedDate.toDate ? date.toDate() : new Date(a.modifiedDate);
+            const dateA = a.modifiedDate.toDate ? a.modifiedDate.toDate() : new Date(a.modifiedDate);
             const dateB = b.modifiedDate.toDate ? b.modifiedDate.toDate() : new Date(b.modifiedDate);
             return dateB - dateA;
           })
