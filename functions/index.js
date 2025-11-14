@@ -10,7 +10,7 @@ const { defineString } = require('firebase-functions/params');
 // Initialize Firebase Admin
 admin.initializeApp();
 
-const GOOGLE_AI_API_KEY = defineString('GTD_GOOGLE_AI_API_KEY');
+const GOOGLE_AI_API_KEY = process.env.GTD_GOOGLE_AI_API_KEY;
 
 const ttsClient = new textToSpeech.TextToSpeechClient();
 const storage = new Storage();

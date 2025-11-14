@@ -1,4 +1,3 @@
-require('dotenv').config({ path: '.env.personal-gtd-ea76d' });
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 async function listModels() {

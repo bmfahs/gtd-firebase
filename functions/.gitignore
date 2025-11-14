@@ -1,3 +1,4 @@
 node_modules/
 *.local
 .env.personal-gtd-ea76d
+.env.*
