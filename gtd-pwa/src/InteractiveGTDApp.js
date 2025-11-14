@@ -6,6 +6,36 @@ import TaskDetailEditor from './EnhancedComponents';
 import VoiceInterface from './components/VoiceInterface';
 import KeyboardShortcuts, { useKeyboardShortcuts } from './components/KeyboardShortcuts';
 
+// Get or create Inbox
+const getOrCreateInboxId = async (userId) => {
+  const tasksCollectionRef = collection(db, 'tasks');
+  const q = query(tasksCollectionRef, 
+    where("userId", "==", userId), 
+    where("title", "==", "<Inbox>"),
+    where("parentId", "==", null)
+  );
+  const querySnapshot = await getDocs(q);
+
+  if (!querySnapshot.empty) {
+    return querySnapshot.docs[0].id;
+  } else {
+    const inboxTask = {
+      title: '<Inbox>',
+      userId: userId,
+      status: 'next_action',
+      importance: 3,
+      urgency: 3,
+      source: 'system',
+      createdDate: serverTimestamp(),
+      modifiedDate: serverTimestamp(),
+      computedPriority: 0,
+      childCount: 0
+    };
+    const docRef = await addDoc(tasksCollectionRef, inboxTask);
+    return docRef.id;
+  }
+};
+
 // Interactive Task Item Component
 const InteractiveTaskItem = ({ 
   task, 
@@ -584,36 +614,6 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
 
   const showHierarchy = currentView === 'alltasks' || currentView === 'inbox';
 
-  // Get or create Inbox
-  const getOrCreateInboxId = async (userId) => {
-    const tasksCollectionRef = collection(db, 'tasks');
-    const q = query(tasksCollectionRef, 
-      where("userId", "==", userId), 
-      where("title", "==", "<Inbox>"),
-      where("parentId", "==", null)
-    );
-    const querySnapshot = await getDocs(q);
-
-    if (!querySnapshot.empty) {
-      return querySnapshot.docs[0].id;
-    } else {
-      const inboxTask = {
-        title: '<Inbox>',
-        userId: userId,
-        status: 'next_action',
-        importance: 3,
-        urgency: 3,
-        source: 'system',
-        createdDate: serverTimestamp(),
-        modifiedDate: serverTimestamp(),
-        computedPriority: 0,
-        childCount: 0
-      };
-      const docRef = await addDoc(tasksCollectionRef, inboxTask);
-      return docRef.id;
-    }
-  };
-
   // Handle task updates from voice
   const handleTaskUpdate = async (update) => {
     console.log('Received task update:', update);
@@ -779,7 +779,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
       default:
         console.log('Unknown action:', action);
     }
-  }, [onUpdate, user]);
+  }, [onUpdate]);
 
   // Initialize keyboard shortcuts
   useKeyboardShortcuts({
