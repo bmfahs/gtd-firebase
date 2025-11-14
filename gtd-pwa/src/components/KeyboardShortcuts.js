@@ -241,12 +241,10 @@ export const useKeyboardShortcuts = ({
     selectedTaskIndex, 
     flatTasks, 
     onTaskAction, 
-    setCurrentView, 
     setSelectedTaskIndex, 
     onToggleVoice, 
     onRefresh, 
     searchInputRef, 
-    setFilter, 
     setShowShortcutsHelp
   ]);
 

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { db } from './firebase';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, deleteDoc, query, where, getDocs } from 'firebase/firestore';
-import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, ChevronDown, Inbox, ListTodo, FolderTree, Clock, Mic } from 'lucide-react';
+import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, ChevronDown, Inbox, ListTodo, FolderTree, Clock, Mic, Menu } from 'lucide-react';
 import TaskDetailEditor from './EnhancedComponents';
 import VoiceInterface from './components/VoiceInterface';
 import KeyboardShortcuts, { useKeyboardShortcuts } from './components/KeyboardShortcuts';
@@ -454,9 +454,22 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
   const [editingTask, setEditingTask] = useState(null);
   const [startParentSearchOpen, setStartParentSearchOpen] = useState(false);
   
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
   const searchInputRef = useRef(null);
 
-  // Extract unique contexts from tasks
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 1024) {
+        setIsSidebarOpen(true);
+      } else {
+        setIsSidebarOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   const getUniqueContexts = (taskList) => {
     const contexts = new Set();
     const extractContexts = (tasks) => {
@@ -805,8 +818,10 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
     }
   };
 
+  const uniqueClassName = `gtd-app-${Date.now()}`;
+
   return (
-    <div className="gtd-app">
+    <div className={`gtd-app ${uniqueClassName}`}>
       {/* Keyboard Shortcuts Help */}
       <KeyboardShortcuts 
         isOpen={showShortcutsHelp} 
@@ -836,7 +851,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
       )}
 
       {/* Left Sidebar Navigation */}
-      <div className="gtd-sidebar">
+      <div className={`gtd-sidebar ${isSidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-section">
           <h3 className="sidebar-header">Views</h3>
           <nav className="sidebar-nav">
@@ -876,6 +891,9 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
       <div className="gtd-main">
         {/* Header */}
         <div className="gtd-header">
+          <button className="sidebar-toggle" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+            <Menu size={24} />
+          </button>
           <h1>
             {currentView === 'inbox' && 'Inbox'}
             {currentView === 'todo' && 'To Do'}
@@ -1440,6 +1458,40 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
 
         .text-blue-600 {
           color: #2563eb;
+        }
+        
+        .sidebar-toggle {
+          display: none;
+        }
+
+        @media (max-width: 1024px) {
+          .gtd-app {
+            flex-direction: column;
+          }
+          .gtd-app .gtd-sidebar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            transform: translateX(-100%);
+            z-index: 100;
+          }
+          .gtd-app .gtd-sidebar.open {
+            transform: translateX(0);
+          }
+          .gtd-app .gtd-main {
+            width: 100%;
+          }
+          .gtd-app .sidebar-toggle {
+            display: block;
+            background: none;
+            border: none;
+            color: #4b5563;
+            cursor: pointer;
+          }
+          .gtd-app .gtd-filters {
+            flex-direction: column;
+          }
         }
       `}</style>
     </div>
