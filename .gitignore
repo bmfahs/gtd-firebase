@@ -72,3 +72,4 @@ serviceAccountKey.json
 
 # Build output directory
 build/
+build/index.html
