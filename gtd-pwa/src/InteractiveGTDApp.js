@@ -598,7 +598,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('action') === 'quick_add') {
-      setCurrentView('inbox');
+      setCurrentView('quick_add_standalone');
       setQuickAddAutoFocus(true);
       // Clean up URL to avoid re-triggering on refresh
       window.history.replaceState({}, document.title, window.location.pathname);
@@ -955,6 +955,34 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
   };
 
   const uniqueClassName = `gtd-app-${Date.now()}`;
+
+  if (currentView === 'quick_add_standalone') {
+    return (
+      <div className="app-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f3f4f6' }}>
+        <div style={{ width: '100%', maxWidth: '600px', padding: '20px', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          <h2 style={{ marginBottom: '20px', textAlign: 'center', color: '#1f2937' }}>Quick Add Task</h2>
+          <QuickAddTask
+            userId={user.uid}
+            onAdd={() => {
+              onUpdate();
+              // Optional: Show success message or close if possible (web apps can't close themselves usually)
+              alert('Task added to Inbox!');
+            }}
+            allContexts={allContexts}
+            autoFocus={true}
+          />
+          <div style={{ marginTop: '20px', textAlign: 'center' }}>
+            <button
+              onClick={() => setCurrentView('inbox')}
+              style={{ background: 'none', border: 'none', color: '#4b5563', textDecoration: 'underline', cursor: 'pointer' }}
+            >
+              Go to Inbox
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`gtd-app ${uniqueClassName}`}>
