@@ -326,6 +326,20 @@ Private project for personal use.
 
 ---
 
+## 🚀 Google Apps Script Configuration
+
+The `addEmailTask.gs` script uses a script property to store the `FIREBASE_PROJECT_ID`. This allows you to configure the project ID without modifying the script itself.
+
+To configure the script property:
+
+1.  Open your Google Apps Script project.
+2.  Go to "Project Settings" (the gear icon).
+3.  Under "Script Properties", click "Add script property".
+4.  Enter `FIREBASE_PROJECT_ID` as the "Property" and your Firebase project ID as the "Value".
+5.  Click "Save script properties".
+
+---
+
 ## 🚀 Ready to Start?
 
 **Recommended path:**
