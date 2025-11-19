@@ -6,12 +6,34 @@ const xml2js = require('xml2js');
 const { getFirestore } = require('firebase-admin/firestore');
 
 // Initialize Firebase Admin
-const serviceAccount = require('./serviceAccountKey.json');
+require('dotenv').config();
+
+let serviceAccount;
+try {
+  if (process.env.SERVICE_ACCOUNT_KEY_JSON) {
+    serviceAccount = JSON.parse(process.env.SERVICE_ACCOUNT_KEY_JSON);
+  } else {
+    // Fallback for backward compatibility or local dev if file still exists
+    // But per requirements we want to rely on the env var.
+    // Let's try to load the file if env var is missing, but warn.
+    try {
+      serviceAccount = require('./serviceAccountKey.json');
+      console.warn('⚠️  Warning: Using serviceAccountKey.json file. Please migrate to SERVICE_ACCOUNT_KEY_JSON environment variable.');
+    } catch (e) {
+      throw new Error('SERVICE_ACCOUNT_KEY_JSON environment variable is not set.');
+    }
+  }
+} catch (error) {
+  console.error('❌ Error loading service account credentials:', error.message);
+  process.exit(1);
+}
+
 const app = admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
 
-const db = getFirestore(app, 'gtd-database');
+const databaseId = process.env.FIREBASE_DATABASE_ID || 'gtd-database';
+const db = getFirestore(app, databaseId);
 
 // Parse MLO XML structure
 async function parseMLOXML(xmlContent) {
@@ -19,7 +41,7 @@ async function parseMLOXML(xmlContent) {
     explicitArray: false,
     mergeAttrs: true
   });
-  
+
   const result = await parser.parseStringPromise(xmlContent);
   return result['MyLifeOrganized-xml'].TaskTree;
 }
@@ -36,9 +58,9 @@ function effortToEnergy(effort) {
 // Convert MLO place to context
 function placeToContext(place) {
   if (!place) return null;
-  
+
   const placeStr = Array.isArray(place) ? place[0] : place;
-  
+
   // Map MLO places to GTD contexts
   const mapping = {
     '!Errands': '@errands',
@@ -50,7 +72,7 @@ function placeToContext(place) {
     '@Computer': '@computer',
     '@Home': '@home'
   };
-  
+
   return mapping[placeStr] || placeStr.toLowerCase();
 }
 
@@ -73,13 +95,13 @@ function estimateToMinutes(estimateMin, estimateMax) {
 function calculateImportance(importance, urgency) {
   const imp = parseInt(importance) || 100;
   const urg = parseInt(urgency) || 100;
-  
+
   // Convert to 1-5 scale
   // MLO: 0-200, midpoint is 100
   // High: 150+, Medium: 75-150, Low: <75
   const impScore = imp >= 150 ? 5 : imp >= 100 ? 4 : imp >= 75 ? 3 : imp >= 50 ? 2 : 1;
   const urgScore = urg >= 150 ? 5 : urg >= 100 ? 4 : urg >= 75 ? 3 : urg >= 50 ? 2 : 1;
-  
+
   return {
     importance: impScore,
     urgency: urgScore
@@ -89,7 +111,7 @@ function calculateImportance(importance, urgency) {
 // Process task node recursively into a tree structure
 function processTaskNode(node) {
   if (!node) return [];
-  
+
   const nodes = Array.isArray(node) ? node : [node];
   const tasks = [];
 
@@ -112,45 +134,45 @@ function processTaskNode(node) {
     const task = {
       title: caption,
       description: taskNode.Note || '',
-      
+
       // Status
       status: isCompleted ? 'done' : 'next_action',
       completedDate: isCompleted ? new Date(taskNode.CompletionDateTime) : null,
-      
+
       // Priority factors
       importance: importance.importance,
       urgency: importance.urgency,
       timeEstimate: timeEstimate,
       energyLevel: energyLevel,
-      
+
       // Context
       context: context,
-      
+
       // Project flag
       isProject: isProject,
-      
+
       // Dates
       dueDate: taskNode.DueDateTime ? new Date(taskNode.DueDateTime) : null,
       startDate: taskNode.StartDateTime ? new Date(taskNode.StartDateTime) : null,
-      
+
       // MLO specific
       mloImportance: parseInt(taskNode.Importance) || 100,
       mloUrgency: parseInt(taskNode.Urgency) || 100,
       mloEffort: parseInt(taskNode.Effort) || 0,
-      
+
       // Metadata
       source: 'mlo_import',
-      
+
       // Focus flag
       todayFocus: importance.importance >= 5 && importance.urgency >= 5 && !isCompleted,
-      
+
       // Children placeholder
       children: taskNode.TaskNode ? processTaskNode(taskNode.TaskNode) : []
     };
-    
+
     tasks.push(task);
   });
-  
+
   return tasks;
 }
 
@@ -221,27 +243,27 @@ async function importToFirestore(tasks, userId) {
 // Calculate initial priorities
 async function calculatePriorities(userId) {
   console.log('🧮 Calculating priorities...\n');
-  
+
   const tasksSnapshot = await db.collection('tasks')
     .where('userId', '==', userId)
     .where('status', '==', 'next_action')
     .get();
-  
+
   const batch = db.batch();
   let count = 0;
-  
+
   tasksSnapshot.docs.forEach(doc => {
     const task = doc.data();
-    
+
     // Simple priority calculation
     const importanceScore = (task.importance || 3) * 3;
     const urgencyScore = (task.urgency || 3) * 2.5;
     const timeBonus = task.timeEstimate && task.timeEstimate <= 15 ? 3 : 0;
-    const energyScore = task.energyLevel === 'low' ? 2 : 
-                        task.energyLevel === 'medium' ? 1 : 0;
-    
+    const energyScore = task.energyLevel === 'low' ? 2 :
+      task.energyLevel === 'medium' ? 1 : 0;
+
     const priority = importanceScore + urgencyScore + timeBonus + energyScore;
-    
+
     batch.update(doc.ref, {
       computedPriority: priority,
       priorityBreakdown: {
@@ -252,10 +274,10 @@ async function calculatePriorities(userId) {
       },
       lastPriorityUpdate: admin.firestore.FieldValue.serverTimestamp()
     });
-    
+
     count++;
   });
-  
+
   await batch.commit();
   console.log(`✅ Calculated priorities for ${count} tasks\n`);
 }
@@ -265,9 +287,9 @@ async function generateStats(userId) {
   const tasksSnapshot = await db.collection('tasks')
     .where('userId', '==', userId)
     .get();
-  
+
   const tasks = tasksSnapshot.docs.map(d => d.data());
-  
+
   const stats = {
     total: tasks.length,
     active: tasks.filter(t => t.status === 'next_action').length,
@@ -279,7 +301,7 @@ async function generateStats(userId) {
     withDueDate: tasks.filter(t => t.dueDate).length,
     avgTimeEstimate: 0
   };
-  
+
   // Count by context
   tasks.forEach(t => {
     if (t.context) {
@@ -289,7 +311,7 @@ async function generateStats(userId) {
       stats.byLevel[t.level] = (stats.byLevel[t.level] || 0) + 1;
     }
   });
-  
+
   // Average time estimate
   const tasksWithTime = tasks.filter(t => t.timeEstimate);
   if (tasksWithTime.length > 0) {
@@ -297,47 +319,47 @@ async function generateStats(userId) {
       tasksWithTime.reduce((sum, t) => sum + t.timeEstimate, 0) / tasksWithTime.length
     );
   }
-  
+
   return stats;
 }
 
 // Main import function
 async function main() {
   const args = process.argv.slice(2);
-  
+
   if (args.length < 2) {
     console.log('\n❌ Usage: node import-mlo.js <xml-file> <user-email>\n');
     console.log('Example: node import-mlo.js mlo-export.xml brian@example.com\n');
     process.exit(1);
   }
-  
+
   const xmlFile = args[0];
   const userEmail = args[1];
-  
+
   console.log('\n╔════════════════════════════════════════╗');
   console.log('║   MLO to Firestore Import Script      ║');
   console.log('╚════════════════════════════════════════╝\n');
-  
+
   try {
     // Read XML file
     console.log(`📄 Reading ${xmlFile}...`);
     const xmlContent = fs.readFileSync(xmlFile, 'utf-8');
-    
+
     // Parse XML
     console.log('🔍 Parsing MLO XML structure...');
     const taskTree = await parseMLOXML(xmlContent);
-    
+
     // Process tasks
     console.log('🔄 Processing tasks and hierarchies...');
     const tasks = processTaskNode(taskTree.TaskNode);
-    
+
     console.log(`\n📊 Found ${tasks.length} tasks:`);
     console.log(`   - Active: ${tasks.filter(t => t.status === 'next_action').length}`);
     console.log(`   - Completed: ${tasks.filter(t => t.status === 'done').length}`);
     console.log(`   - Projects: ${tasks.filter(t => t.isProject).length}`);
     console.log(`   - Max depth: ${Math.max(...tasks.map(t => t.level))}`);
     console.log(`   - Initial focus items: ${tasks.filter(t => t.todayFocus).length}`);
-    
+
     // Get user UID from Firebase Auth
     console.log(`\n👤 Getting user UID for: ${userEmail}`);
     let userId;
@@ -353,21 +375,21 @@ async function main() {
       }
       throw error;
     }
-    
+
     // Import to Firestore
     await importToFirestore(tasks, userId);
-    
+
     // Calculate priorities
     await calculatePriorities(userId);
-    
+
     // Generate statistics
     console.log('📈 Generating statistics...\n');
     const stats = await generateStats(userId);
-    
+
     console.log('╔════════════════════════════════════════╗');
     console.log('║          Import Complete! ✅           ║');
     console.log('╚════════════════════════════════════════╝\n');
-    
+
     console.log('📊 Import Statistics:');
     console.log(`   Total tasks imported: ${stats.total}`);
     console.log(`   Active tasks: ${stats.active}`);
@@ -376,29 +398,29 @@ async function main() {
     console.log(`   Today's focus: ${stats.focused}`);
     console.log(`   Tasks with due dates: ${stats.withDueDate}`);
     console.log(`   Average time estimate: ${stats.avgTimeEstimate} minutes`);
-    
+
     console.log('\n📍 Contexts:');
     Object.entries(stats.byContext).forEach(([ctx, count]) => {
       console.log(`   ${ctx}: ${count} tasks`);
     });
-    
+
     console.log('\n🌳 Hierarchy depth:');
     Object.entries(stats.byLevel).forEach(([level, count]) => {
       console.log(`   Level ${level}: ${count} tasks`);
     });
-    
+
     console.log('\n✨ Next steps:');
     console.log('   1. Open your app: npm start');
     console.log('   2. Sign in with: ' + userEmail);
     console.log('   3. Review imported tasks');
     console.log('   4. Check "Today\'s Focus" for high priority items\n');
-    
+
   } catch (error) {
     console.error('\n❌ Import failed:', error.message);
     console.error(error.stack);
     process.exit(1);
   }
-  
+
   process.exit(0);
 }
 

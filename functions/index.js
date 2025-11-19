@@ -4,7 +4,7 @@ const admin = require('firebase-admin');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const textToSpeech = require('@google-cloud/text-to-speech');
 const { Storage } = require('@google-cloud/storage');
-const cors = require('cors')({origin: true});
+const cors = require('cors')({ origin: true });
 const { defineString } = require('firebase-functions/params');
 
 // Initialize Firebase Admin
@@ -87,7 +87,7 @@ Respond in JSON format with this structure:
 
     const response = result.response;
     const text = response.text();
-    
+
     // Parse JSON from response
     let analysis;
     try {
@@ -106,10 +106,10 @@ Respond in JSON format with this structure:
         rawResponse: text
       };
     }
-    
+
     // Log for monitoring
     console.log(`Task analyzed for user ${context.auth.uid}: ${taskTitle}`);
-    
+
     return {
       success: true,
       analysis,
@@ -192,7 +192,7 @@ Format as JSON:
 
     const response = result.response;
     const text = response.text();
-    
+
     // Parse JSON from response
     let research;
     try {
@@ -211,9 +211,9 @@ Format as JSON:
         rawResponse: text
       };
     }
-    
+
     console.log(`Deep research completed for user ${context.auth.uid}: ${topic}`);
-    
+
     return {
       success: true,
       research,
@@ -267,11 +267,11 @@ exports.processVoiceCommand = onRequest(async (req, res) => {
       console.log('User Context:', userContext);
 
       // Build comprehensive context
-      const tasksContext = userContext.tasks?.map(t => 
+      const tasksContext = userContext.tasks?.map(t =>
         `- "${t.title}" (${t.context || 'no context'}, ${t.status}, priority: ${t.importance || 3}/${t.urgency || 3})`
       ).join('\n') || 'No active tasks';
 
-      const recentContext = userContext.recentActions?.map(a => 
+      const recentContext = userContext.recentActions?.map(a =>
         `${a.role}: ${a.content}`
       ).join('\n') || 'No recent conversation';
 
@@ -324,9 +324,9 @@ CONFIRMATION EXAMPLES:
       const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
       const result = await model.generateContent({
-        contents: [{ 
-          role: 'user', 
-          parts: [{ text: `${systemPrompt}\n\nUSER COMMAND: "${command}"` }] 
+        contents: [{
+          role: 'user',
+          parts: [{ text: `${systemPrompt}\n\nUSER COMMAND: "${command}"` }]
         }],
         generationConfig: {
           temperature: 0.8,
@@ -339,7 +339,7 @@ CONFIRMATION EXAMPLES:
       const response = result.response;
       const text = response.text();
       console.log('Gemini Response:', text);
-      
+
       // Parse JSON from response
       let result_data;
       try {
@@ -360,9 +360,9 @@ CONFIRMATION EXAMPLES:
           needsConfirmation: false
         };
       }
-      
+
       console.log(`Voice command processed for user ${decodedToken.uid}: ${command}`);
-      
+
       res.json({
         data: {
           success: true,
@@ -421,12 +421,13 @@ exports.generateAudioSummary = onCall(async (data, context) => {
     };
 
     const [response] = await ttsClient.synthesizeSpeech(request);
-    
+
     // Save to Cloud Storage
-    const bucket = storage.bucket('personal-gtd-ea76d.appspot.com');
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET || 'personal-gtd-ea76d.appspot.com';
+    const bucket = storage.bucket(bucketName);
     const fileName = `audio/${userId}/summary_${Date.now()}.mp3`;
     const file = bucket.file(fileName);
-    
+
     await file.save(response.audioContent, {
       metadata: {
         contentType: 'audio/mpeg',
@@ -467,64 +468,65 @@ exports.generateAudioSummary = onCall(async (data, context) => {
  * Runs at 2 AM PST daily
  */
 exports.scheduledBackup = onSchedule('0 2 * * *', async (context) => {
-    console.log('Starting scheduled backup...');
-    
-    try {
-      const db = admin.firestore();
-      const bucket = storage.bucket('personal-gtd-ea76d.appspot.com');
-      
-      // Collections to backup
-      const collections = ['tasks', 'users', 'contexts', 'settings'];
-      
-      for (const collectionName of collections) {
-        const snapshot = await db.collection(collectionName).get();
-        const data = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          // Convert Firestore timestamps to ISO strings
-          _backup_timestamp: new Date().toISOString()
-        }));
-        
-        const timestamp = Date.now();
-        const fileName = `backups/${collectionName}_${timestamp}.json`;
-        const file = bucket.file(fileName);
-        
-        await file.save(JSON.stringify(data, null, 2), {
+  console.log('Starting scheduled backup...');
+
+  try {
+    const db = admin.firestore();
+    const bucketName = process.env.FIREBASE_STORAGE_BUCKET || 'personal-gtd-ea76d.appspot.com';
+    const bucket = storage.bucket(bucketName);
+
+    // Collections to backup
+    const collections = ['tasks', 'users', 'contexts', 'settings'];
+
+    for (const collectionName of collections) {
+      const snapshot = await db.collection(collectionName).get();
+      const data = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        // Convert Firestore timestamps to ISO strings
+        _backup_timestamp: new Date().toISOString()
+      }));
+
+      const timestamp = Date.now();
+      const fileName = `backups/${collectionName}_${timestamp}.json`;
+      const file = bucket.file(fileName);
+
+      await file.save(JSON.stringify(data, null, 2), {
+        metadata: {
+          contentType: 'application/json',
           metadata: {
-            contentType: 'application/json',
-            metadata: {
-              collection: collectionName,
-              documentCount: data.length,
-              backupDate: new Date().toISOString()
-            }
-          }
-        });
-        
-        console.log(`Backed up ${data.length} documents from ${collectionName}`);
-      }
-      
-      // Clean up old backups (keep last 30 days)
-      const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-      const [files] = await bucket.getFiles({ prefix: 'backups/' });
-      
-      for (const file of files) {
-        const match = file.name.match(/_(\d+)\.json$/);
-        if (match) {
-          const fileTimestamp = parseInt(match[1]);
-          if (fileTimestamp < thirtyDaysAgo) {
-            await file.delete();
-            console.log(`Deleted old backup: ${file.name}`);
+            collection: collectionName,
+            documentCount: data.length,
+            backupDate: new Date().toISOString()
           }
         }
-      }
-      
-      console.log('Backup completed successfully');
-      
-    } catch (error) {
-      console.error('Backup failed:', error);
-      throw error;
+      });
+
+      console.log(`Backed up ${data.length} documents from ${collectionName}`);
     }
-  });
+
+    // Clean up old backups (keep last 30 days)
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    const [files] = await bucket.getFiles({ prefix: 'backups/' });
+
+    for (const file of files) {
+      const match = file.name.match(/_(\d+)\.json$/);
+      if (match) {
+        const fileTimestamp = parseInt(match[1]);
+        if (fileTimestamp < thirtyDaysAgo) {
+          await file.delete();
+          console.log(`Deleted old backup: ${file.name}`);
+        }
+      }
+    }
+
+    console.log('Backup completed successfully');
+
+  } catch (error) {
+    console.error('Backup failed:', error);
+    throw error;
+  }
+});
 
 /**
  * Manual backup trigger
@@ -543,7 +545,7 @@ exports.triggerBackup = onCall(async (data, context) => {
   try {
     // Trigger the backup logic
     await exports.scheduledBackup.run();
-    
+
     return {
       success: true,
       message: 'Backup completed successfully',

@@ -5,12 +5,13 @@ import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, C
 import TaskDetailEditor from './EnhancedComponents';
 import VoiceInterface from './components/VoiceInterface';
 import KeyboardShortcuts, { useKeyboardShortcuts } from './components/KeyboardShortcuts';
+import './InteractiveGTDApp.css';
 
 // Get or create Inbox
 const getOrCreateInboxId = async (userId) => {
   const tasksCollectionRef = collection(db, 'tasks');
-  const q = query(tasksCollectionRef, 
-    where("userId", "==", userId), 
+  const q = query(tasksCollectionRef,
+    where("userId", "==", userId),
     where("title", "==", "<Inbox>"),
     where("parentId", "==", null)
   );
@@ -37,14 +38,14 @@ const getOrCreateInboxId = async (userId) => {
 };
 
 // Interactive Task Item Component
-const InteractiveTaskItem = ({ 
-  task, 
-  userId, 
-  onUpdate, 
+const InteractiveTaskItem = ({
+  task,
+  userId,
+  onUpdate,
   onEdit,
-  level = 0, 
-  allContexts, 
-  allTasks, 
+  level = 0,
+  allContexts,
+  allTasks,
   showHierarchy = true,
   isSelected = false,
   taskIndex = -1
@@ -84,7 +85,7 @@ const InteractiveTaskItem = ({
       alert('Task title cannot be empty');
       return;
     }
-    
+
     try {
       const taskRef = doc(db, 'tasks', task.id);
       await updateDoc(taskRef, {
@@ -123,7 +124,7 @@ const InteractiveTaskItem = ({
       };
 
       await addDoc(collection(db, 'tasks'), newTask);
-      
+
       // Update parent's child count
       const parentRef = doc(db, 'tasks', task.id);
       await updateDoc(parentRef, {
@@ -159,7 +160,7 @@ const InteractiveTaskItem = ({
       };
 
       await deleteRecursive(task);
-      
+
       // Update parent's child count if this task has a parent
       if (task.parentId) {
         const parentRef = doc(db, 'tasks', task.parentId);
@@ -183,7 +184,7 @@ const InteractiveTaskItem = ({
     const now = new Date();
     const diffTime = now - d;
     const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) return 'today';
     if (diffDays === 1) return 'yesterday';
     if (diffDays < 7) return `${diffDays}d ago`;
@@ -192,7 +193,7 @@ const InteractiveTaskItem = ({
 
   return (
     <>
-      <div 
+      <div
         className="task-item-container"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -394,13 +395,13 @@ const QuickAddTask = ({ userId, onAdd, parentId = null, level = 0, allContexts, 
       };
 
       await addDoc(collection(db, 'tasks'), newTask);
-      
+
       // Reset form
       setTitle('');
       setContext('');
       setTimeEstimate('');
       setIsExpanded(false);
-      
+
       onAdd?.();
     } catch (error) {
       console.error('Error adding task:', error);
@@ -453,13 +454,13 @@ const QuickAddTask = ({ userId, onAdd, parentId = null, level = 0, allContexts, 
             className="detail-input small"
           />
           <button onClick={handleAdd} className="add-btn">Add Task</button>
-          <button 
+          <button
             onClick={() => {
               setTitle('');
               setContext('');
               setTimeEstimate('');
               setIsExpanded(false);
-            }} 
+            }}
             className="cancel-btn"
           >
             Cancel
@@ -483,9 +484,9 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
   const [sequenceKey, setSequenceKey] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
   const [startParentSearchOpen, setStartParentSearchOpen] = useState(false);
-  
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  
+
   const searchInputRef = useRef(null);
 
   useEffect(() => {
@@ -535,7 +536,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
       case 'inbox':
         const inboxTask = tasks.find(t => t.title === '<Inbox>' && !t.parentId);
         return inboxTask ? (inboxTask.children || []).filter(child => child.status !== 'done') : [];
-      
+
       case 'todo':
         const allFlat = flattenTasks(tasks);
         return allFlat
@@ -545,7 +546,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
             const priorityB = b.computedPriority || ((b.importance || 3) * 3 + (b.urgency || 3) * 2.5);
             return priorityB - priorityA;
           });
-      
+
       case 'recent':
         const allFlatWithDates = flattenTasks(tasks);
         return allFlatWithDates
@@ -556,7 +557,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
             return dateB - dateA;
           })
           .slice(0, 50);
-      
+
       case 'alltasks':
       default:
         return tasks;
@@ -567,16 +568,16 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
   const filterTasks = (taskList) => {
     if (currentView === 'todo' || currentView === 'recent') {
       return taskList.filter(task => {
-        const matchesSearch = !searchTerm || 
+        const matchesSearch = !searchTerm ||
           (task.title || '').toLowerCase().includes(searchTerm.toLowerCase());
-        
-        const matchesContext = !selectedContext || 
+
+        const matchesContext = !selectedContext ||
           task.context === selectedContext;
-        
+
         const matchesStatus = filter === 'all' ||
           (filter === 'active' && task.status !== 'done') ||
           (filter === 'completed' && task.status === 'done');
-        
+
         return matchesSearch && matchesContext && matchesStatus;
       });
     }
@@ -584,23 +585,23 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
     return taskList
       .map(task => {
         const filteredChildren = task.children ? filterTasks(task.children) : [];
-        
-        const matchesSearch = !searchTerm || 
+
+        const matchesSearch = !searchTerm ||
           (task.title || '').toLowerCase().includes(searchTerm.toLowerCase());
-        
-        const matchesContext = !selectedContext || 
+
+        const matchesContext = !selectedContext ||
           task.context === selectedContext;
-        
+
         const matchesStatus = filter === 'all' ||
           (filter === 'active' && task.status !== 'done') ||
           (filter === 'completed' && task.status === 'done');
-        
+
         if (matchesSearch && matchesContext && matchesStatus) {
           return { ...task, children: filteredChildren };
         } else if (filteredChildren.length > 0) {
           return { ...task, children: filteredChildren };
         }
-        
+
         return null;
       })
       .filter(task => task !== null);
@@ -608,8 +609,8 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
 
   const viewTasks = getViewTasks();
   const filteredTasks = filterTasks(viewTasks);
-  const flatFilteredTasks = currentView === 'todo' || currentView === 'recent' 
-    ? filteredTasks 
+  const flatFilteredTasks = currentView === 'todo' || currentView === 'recent'
+    ? filteredTasks
     : flattenTasks(filteredTasks);
 
   const showHierarchy = currentView === 'alltasks' || currentView === 'inbox';
@@ -680,33 +681,33 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
   // Handle keyboard shortcuts actions
   const handleTaskAction = useCallback(async (action, task, value) => {
     console.log('Task action:', action, task, value);
-    
+
     switch (action) {
       case 'create':
         setQuickAddAutoFocus(true);
         setTimeout(() => setQuickAddAutoFocus(false), 100);
         break;
-        
+
       case 'addSubtask':
         if (task) {
           // Trigger add child for selected task
           console.log('Add subtask to:', task.title);
         }
         break;
-        
+
       case 'edit':
         if (task) {
           setEditingTask(task);
         }
         break;
-        
+
       case 'move':
         if (task) {
           setEditingTask(task);
           setStartParentSearchOpen(true);
         }
         break;
-        
+
       case 'toggleComplete':
         if (task) {
           const taskRef = doc(db, 'tasks', task.id);
@@ -719,7 +720,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           onUpdate();
         }
         break;
-        
+
       case 'delete':
         if (task) {
           if (window.confirm(`Delete "${task.title}"?`)) {
@@ -728,7 +729,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           }
         }
         break;
-        
+
       case 'setImportance':
         if (task && value) {
           const taskRef = doc(db, 'tasks', task.id);
@@ -739,7 +740,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           onUpdate();
         }
         break;
-        
+
       case 'setUrgency':
         if (task && value) {
           const taskRef = doc(db, 'tasks', task.id);
@@ -750,32 +751,32 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           onUpdate();
         }
         break;
-        
+
       case 'setContext':
         console.log('Set context for:', task?.title);
         break;
-        
+
       case 'setDueDate':
         console.log('Set due date for:', task?.title);
         break;
-        
+
       case 'collapse':
       case 'expand':
         console.log(action, 'task:', task?.title);
         break;
-        
+
       case 'aiAnalysis':
         console.log('AI analysis for:', task?.title);
         break;
-        
+
       case 'aiResearch':
         console.log('AI research for:', task?.title);
         break;
-        
+
       case 'cancel':
         setSelectedTaskIndex(-1);
         break;
-        
+
       default:
         console.log('Unknown action:', action);
     }
@@ -823,9 +824,9 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
   return (
     <div className={`gtd-app ${uniqueClassName}`}>
       {/* Keyboard Shortcuts Help */}
-      <KeyboardShortcuts 
-        isOpen={showShortcutsHelp} 
-        onClose={() => setShowShortcutsHelp(false)} 
+      <KeyboardShortcuts
+        isOpen={showShortcutsHelp}
+        onClose={() => setShowShortcutsHelp(false)}
       />
 
       {/* Task Detail Editor */}
@@ -972,9 +973,9 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
 
         {/* Quick Add */}
         {(currentView === 'inbox' || currentView === 'alltasks') && (
-          <QuickAddTask 
-            userId={user.uid} 
-            onAdd={onUpdate} 
+          <QuickAddTask
+            userId={user.uid}
+            onAdd={onUpdate}
             allContexts={allContexts}
             autoFocus={quickAddAutoFocus}
           />
@@ -1016,483 +1017,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
       )}
 
       <style jsx>{`
-        .gtd-app {
-          display: flex;
-          height: calc(100vh - 70px);
-          background: #f3f4f6;
-        }
-
-        .gtd-sidebar {
-          width: 240px;
-          background: white;
-          border-right: 1px solid #e5e7eb;
-          padding: 20px 0;
-          overflow-y: auto;
-        }
-
-        .sidebar-section {
-          margin-bottom: 24px;
-        }
-
-        .sidebar-header {
-          margin: 0 20px 12px;
-          font-size: 11px;
-          font-weight: 600;
-          text-transform: uppercase;
-          color: #6b7280;
-          letter-spacing: 0.05em;
-        }
-
-        .sidebar-nav {
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-        }
-
-        .nav-item {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          padding: 10px 20px;
-          background: none;
-          border: none;
-          cursor: pointer;
-          font-size: 14px;
-          color: #4b5563;
-          transition: all 0.2s;
-          text-align: left;
-          position: relative;
-        }
-
-        .nav-item:hover {
-          background: #f3f4f6;
-        }
-
-        .nav-item.active {
-          background: #dbeafe;
-          color: #1e40af;
-          font-weight: 500;
-        }
-
-        .nav-item.active svg {
-          color: #3b82f6;
-        }
-
-        .gtd-main {
-          flex: 1;
-          overflow-y: auto;
-          padding: 20px;
-        }
-
-        .gtd-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 20px;
-          padding-bottom: 20px;
-          border-bottom: 2px solid #e5e7eb;
-        }
-
-        .header-actions {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .keyboard-help-button {
-          width: 32px;
-          height: 32px;
-          border-radius: 50%;
-          border: 1px solid #d1d5db;
-          background: white;
-          color: #6b7280;
-          font-size: 16px;
-          font-weight: 600;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.2s;
-        }
-
-        .keyboard-help-button:hover {
-          background: #f3f4f6;
-          color: #1f2937;
-          border-color: #9ca3af;
-        }
-
-        .voice-toggle-button {
-          background: none;
-          border: 1px solid #d1d5db;
-          border-radius: 6px;
-          padding: 8px;
-          cursor: pointer;
-          color: #6b7280;
-          display: flex;
-          align-items: center;
-          transition: all 0.2s;
-        }
-
-        .voice-toggle-button:hover {
-          background: #f3f4f6;
-          color: #1f2937;
-        }
-
-        .voice-toggle-button.active {
-          background: #dbeafe;
-          color: #3b82f6;
-          border-color: #3b82f6;
-        }
-
-        .gtd-header h1 {
-          margin: 0;
-          font-size: 2rem;
-          color: #1f2937;
-        }
-
-        .header-stats {
-          color: #6b7280;
-          font-size: 0.875rem;
-        }
-
-        .gtd-filters {
-          display: flex;
-          gap: 12px;
-          margin-bottom: 20px;
-          flex-wrap: wrap;
-        }
-
-        .search-input {
-          flex: 1;
-          min-width: 200px;
-          padding: 8px 12px;
-          border: 1px solid #d1d5db;
-          border-radius: 6px;
-          font-size: 14px;
-        }
-
-        .filter-buttons {
-          display: flex;
-          gap: 8px;
-        }
-
-        .filter-buttons button {
-          padding: 8px 16px;
-          border: 1px solid #d1d5db;
-          background: white;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 14px;
-          transition: all 0.2s;
-        }
-
-        .filter-buttons button:hover {
-          background: #f3f4f6;
-        }
-
-        .filter-buttons button.active {
-          background: #3b82f6;
-          color: white;
-          border-color: #3b82f6;
-        }
-
-        .context-select {
-          padding: 8px 12px;
-          border: 1px solid #d1d5db;
-          border-radius: 6px;
-          font-size: 14px;
-          background: white;
-          cursor: pointer;
-        }
-
-        .task-item-container {
-          margin-bottom: 4px;
-          position: relative;
-        }
-
-        .task-item {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 12px;
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 6px;
-          transition: all 0.2s;
-          position: relative;
-        }
-
-        .task-item:hover {
-          background: #f9fafb;
-          border-color: #d1d5db;
-        }
-
-        .task-item.completed {
-          opacity: 0.6;
-        }
-
-        .task-item.selected {
-          background: #eff6ff !important;
-          border-color: #3b82f6 !important;
-          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-        }
-
-        .task-item.selected::before {
-          content: '';
-          position: absolute;
-          left: 0;
-          top: 0;
-          bottom: 0;
-          width: 4px;
-          background: #3b82f6;
-          border-radius: 6px 0 0 6px;
-        }
-
-        .drag-handle {
-          cursor: grab;
-          color: #9ca3af;
-          transition: opacity 0.2s;
-        }
-
-        .drag-handle:active {
-          cursor: grabbing;
-        }
-
-        .collapse-toggle {
-          background: none;
-          border: none;
-          cursor: pointer;
-          padding: 0;
-          color: #6b7280;
-          display: flex;
-          align-items: center;
-        }
-
-        .completion-checkbox {
-          background: none;
-          border: none;
-          cursor: pointer;
-          padding: 0;
-          display: flex;
-          align-items: center;
-        }
-
-        .task-title {
-          flex: 1;
-          font-size: 15px;
-          color: #1f2937;
-          cursor: pointer;
-        }
-
-        .task-title.line-through {
-          text-decoration: line-through;
-        }
-
-        .task-title-input {
-          flex: 1;
-          padding: 4px 8px;
-          border: 1px solid #3b82f6;
-          border-radius: 4px;
-          font-size: 15px;
-          outline: none;
-        }
-
-        .task-metadata {
-          display: flex;
-          gap: 8px;
-          font-size: 12px;
-          color: #6b7280;
-        }
-
-        .task-context {
-          padding: 2px 8px;
-          background: #dbeafe;
-          color: #1e40af;
-          border-radius: 4px;
-        }
-
-        .task-time {
-          padding: 2px 8px;
-          background: #fef3c7;
-          color: #92400e;
-          border-radius: 4px;
-        }
-
-        .task-children {
-          padding: 2px 8px;
-          background: #e5e7eb;
-          color: #4b5563;
-          border-radius: 4px;
-        }
-
-        .task-date {
-          padding: 2px 8px;
-          background: #f3f4f6;
-          color: #6b7280;
-          border-radius: 4px;
-        }
-
-        .task-actions {
-          display: flex;
-          gap: 4px;
-        }
-
-        .action-btn {
-          padding: 4px;
-          background: none;
-          border: 1px solid #d1d5db;
-          border-radius: 4px;
-          cursor: pointer;
-          color: #6b7280;
-          display: flex;
-          align-items: center;
-          transition: all 0.2s;
-        }
-
-        .action-btn:hover {
-          background: #f3f4f6;
-          color: #1f2937;
-        }
-
-        .delete-btn:hover {
-          background: #fee2e2;
-          color: #dc2626;
-          border-color: #fecaca;
-        }
-
-        .quick-add-container {
-          margin-bottom: 16px;
-        }
-
-        .quick-add-main {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 12px;
-          background: white;
-          border: 2px dashed #d1d5db;
-          border-radius: 6px;
-        }
-
-        .quick-add-input {
-          flex: 1;
-          border: none;
-          outline: none;
-          font-size: 15px;
-        }
-
-        .quick-add-details {
-          display: flex;
-          gap: 8px;
-          margin-top: 8px;
-          padding: 12px;
-          background: #f9fafb;
-          border-radius: 6px;
-        }
-
-        .detail-input {
-          padding: 6px 16px;
-          border: 1px solid #d1d5db;
-          border-radius: 4px;
-          font-size: 14px;
-        }
-
-        .detail-input.small {
-          width: 100px;
-        }
-
-        .add-btn, .cancel-btn, .add-child-btn {
-          padding: 6px 16px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 14px;
-          transition: all 0.2s;
-        }
-
-        .add-btn, .add-child-btn {
-          background: #3b82f6;
-          color: white;
-        }
-
-        .add-btn:hover, .add-child-btn:hover {
-          background: #2563eb;
-        }
-
-        .cancel-btn {
-          background: #e5e7eb;
-          color: #4b5563;
-        }
-
-        .cancel-btn:hover {
-          background: #d1d5db;
-        }
-
-        .add-child-container {
-          display: flex;
-          gap: 8px;
-          align-items: center;
-        }
-
-        .add-child-input {
-          flex: 1;
-          padding: 8px 12px;
-          border: 1px solid #d1d5db;
-          border-radius: 4px;
-          font-size: 14px;
-        }
-
-        .empty-state {
-          text-align: center;
-          padding: 40px;
-          color: #9ca3af;
-        }
-
-        .text-green-600 {
-          color: #059669;
-        }
-
-        .text-gray-400 {
-          color: #9ca3af;
-        }
-
-        .text-blue-600 {
-          color: #2563eb;
-        }
-        
-        .sidebar-toggle {
-          display: none;
-        }
-
-        @media (max-width: 1024px) {
-          .gtd-app {
-            flex-direction: column;
-          }
-          .gtd-app .gtd-sidebar {
-            position: absolute;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            transform: translateX(-100%);
-            z-index: 100;
-          }
-          .gtd-app .gtd-sidebar.open {
-            transform: translateX(0);
-          }
-          .gtd-app .gtd-main {
-            width: 100%;
-          }
-          .gtd-app .sidebar-toggle {
-            display: block;
-            background: none;
-            border: none;
-            color: #4b5563;
-            cursor: pointer;
-          }
-          .gtd-app .gtd-filters {
-            flex-direction: column;
-          }
-        }
+        /* Styles moved to InteractiveGTDApp.css */
       `}</style>
     </div>
   );

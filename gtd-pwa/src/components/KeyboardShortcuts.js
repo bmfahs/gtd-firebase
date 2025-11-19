@@ -25,11 +25,13 @@ const shortcuts = [
   { keys: ['u', '1-5'], description: 'Set urgency (e.g., u 4)' },
 ];
 
+import './KeyboardShortcuts.css';
+
 const KeyboardShortcuts = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="keyboard-shortcuts-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Keyboard Shortcuts</h2>
@@ -50,83 +52,6 @@ const KeyboardShortcuts = ({ isOpen, onClose }) => {
           ))}
         </div>
       </div>
-      <style jsx>{`
-        .modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.6);
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          z-index: 2000;
-        }
-        .modal-content {
-          background: white;
-          border-radius: 8px;
-          padding: 24px;
-          width: 90%;
-          max-width: 500px;
-          box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-        }
-        .modal-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border-bottom: 1px solid #e5e7eb;
-          padding-bottom: 16px;
-          margin-bottom: 16px;
-        }
-        .modal-header h2 {
-          margin: 0;
-          font-size: 20px;
-        }
-        .close-button {
-          background: none;
-          border: none;
-          font-size: 24px;
-          cursor: pointer;
-          color: #9ca3af;
-        }
-        .shortcuts-list {
-          max-height: 70vh;
-          overflow-y: auto;
-        }
-        .shortcut-section-header {
-          margin-top: 24px;
-          margin-bottom: 12px;
-          font-size: 16px;
-          font-weight: 600;
-          color: #3b82f6;
-          border-bottom: 1px solid #e5e7eb;
-          padding-bottom: 8px;
-        }
-        .shortcut-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 12px 0;
-          border-bottom: 1px solid #f3f4f6;
-        }
-        .shortcut-keys {
-          display: flex;
-          gap: 4px;
-        }
-        kbd {
-          background-color: #f3f4f6;
-          border: 1px solid #d1d5db;
-          border-radius: 4px;
-          padding: 4px 8px;
-          font-family: monospace;
-          font-size: 14px;
-        }
-        .shortcut-description {
-          font-size: 15px;
-          color: #374151;
-        }
-      `}</style>
     </div>
   );
 };
@@ -229,7 +154,7 @@ export const useKeyboardShortcuts = ({
       default:
         break;
     }
-    
+
     // Handle number keys for importance
     if (['1', '2', '3', '4', '5'].includes(event.key)) {
       if (selectedTask) {
@@ -238,13 +163,13 @@ export const useKeyboardShortcuts = ({
     }
 
   }, [
-    selectedTaskIndex, 
-    flatTasks, 
-    onTaskAction, 
-    setSelectedTaskIndex, 
-    onToggleVoice, 
-    onRefresh, 
-    searchInputRef, 
+    selectedTaskIndex,
+    flatTasks,
+    onTaskAction,
+    setSelectedTaskIndex,
+    onToggleVoice,
+    onRefresh,
+    searchInputRef,
     setShowShortcutsHelp
   ]);
 

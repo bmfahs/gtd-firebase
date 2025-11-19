@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { serverTimestamp } from 'firebase/firestore';
-import { 
+import {
   Calendar, Clock, Zap, Star, Tag, FolderOpen, Folder
 }
-from 'lucide-react';
+  from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeExternalLinks from 'rehype-external-links';
@@ -35,6 +35,8 @@ const getFlattentenedTasksForParentSelection = (tasksToFlatten, currentTaskId, e
   });
   return flat;
 };
+
+import './EnhancedComponents.css';
 
 // Task Detail Editor Modal
 const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startWithParentSearchOpen = false }) => {
@@ -157,7 +159,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="task-detail-overlay" onClick={onClose}>
       <div className="modal-content enhanced-modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Edit Task Details</h2>
@@ -171,7 +173,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
             <input
               type="text"
               value={formData.title}
-              onChange={e => setFormData({...formData, title: e.target.value})}
+              onChange={e => setFormData({ ...formData, title: e.target.value })}
               autoFocus
               className="form-input"
             />
@@ -183,7 +185,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
             {isEditingDescription ? (
               <textarea
                 value={formData.description}
-                onChange={e => setFormData({...formData, description: e.target.value})}
+                onChange={e => setFormData({ ...formData, description: e.target.value })}
                 onBlur={() => setIsEditingDescription(false)}
                 rows={5} // Increased rows for better editing experience
                 placeholder="Add notes or details..."
@@ -191,13 +193,13 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
                 autoFocus
               />
             ) : (
-              <div 
-                className="description-display" 
+              <div
+                className="description-display"
                 onClick={() => setIsEditingDescription(true)}
                 title="Click to edit description"
               >
                 {formData.description ? (
-                  <ReactMarkdown 
+                  <ReactMarkdown
                     rehypePlugins={[rehypeRaw, [rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }]]}
                   >
                     {formData.description}
@@ -218,7 +220,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
               </label>
               <select
                 value={formData.importance}
-                onChange={e => setFormData({...formData, importance: e.target.value})}
+                onChange={e => setFormData({ ...formData, importance: e.target.value })}
                 className="form-select"
               >
                 <option value="1">1 - Low</option>
@@ -236,7 +238,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
               </label>
               <select
                 value={formData.urgency}
-                onChange={e => setFormData({...formData, urgency: e.target.value})}
+                onChange={e => setFormData({ ...formData, urgency: e.target.value })}
                 className="form-select"
               >
                 <option value="1">1 - Low</option>
@@ -257,7 +259,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
             <input
               type="text"
               value={formData.context}
-              onChange={e => setFormData({...formData, context: e.target.value})}
+              onChange={e => setFormData({ ...formData, context: e.target.value })}
               list="context-suggestions"
               placeholder="e.g., @home, @office, @calls"
               className="form-input"
@@ -279,7 +281,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
               <input
                 type="number"
                 value={formData.timeEstimate}
-                onChange={e => setFormData({...formData, timeEstimate: e.target.value})}
+                onChange={e => setFormData({ ...formData, timeEstimate: e.target.value })}
                 min="1"
                 placeholder="15"
                 className="form-input"
@@ -293,7 +295,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
               </label>
               <select
                 value={formData.energyLevel}
-                onChange={e => setFormData({...formData, energyLevel: e.target.value})}
+                onChange={e => setFormData({ ...formData, energyLevel: e.target.value })}
                 className="form-select"
               >
                 <option value="low">Low</option>
@@ -313,7 +315,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
               <input
                 type="date"
                 value={formData.startDate}
-                onChange={e => setFormData({...formData, startDate: e.target.value})}
+                onChange={e => setFormData({ ...formData, startDate: e.target.value })}
                 className="form-input"
               />
             </div>
@@ -326,7 +328,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
               <input
                 type="date"
                 value={formData.dueDate}
-                onChange={e => setFormData({...formData, dueDate: e.target.value})}
+                onChange={e => setFormData({ ...formData, dueDate: e.target.value })}
                 className="form-input"
               />
             </div>
@@ -349,7 +351,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
                   </button>
                 )}
                 {formData.parentId && (
-                  <button type="button" onClick={() => setFormData({...formData, parentId: null})} className="btn-tertiary">
+                  <button type="button" onClick={() => setFormData({ ...formData, parentId: null })} className="btn-tertiary">
                     Remove Parent
                   </button>
                 )}
@@ -369,14 +371,14 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
                 />
                 <ul className="parent-suggestions">
                   {filteredParents.map((p, index) => (
-                    <li 
-                      key={p.id} 
+                    <li
+                      key={p.id}
                       className={index === highlightedParentIndex ? 'highlighted' : ''}
                       onClick={() => {
-                        setFormData({...formData, parentId: p.id});
+                        setFormData({ ...formData, parentId: p.id });
                         setParentSearch('');
                         setShowParentSearch(false);
-                      }} 
+                      }}
                       style={{ paddingLeft: `${p.level * 16 + 12}px` }}
                     >
                       {p.title}
@@ -402,7 +404,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
               <input
                 type="checkbox"
                 checked={formData.isProject}
-                onChange={e => setFormData({...formData, isProject: e.target.checked})}
+                onChange={e => setFormData({ ...formData, isProject: e.target.checked })}
               />
               <FolderOpen size={16} className="inline-icon" />
               This is a project (contains subtasks)
@@ -414,7 +416,7 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
               <input
                 type="checkbox"
                 checked={formData.todayFocus}
-                onChange={e => setFormData({...formData, todayFocus: e.target.checked})}
+                onChange={e => setFormData({ ...formData, todayFocus: e.target.checked })}
               />
               <Star size={16} className="inline-icon" />
               Add to Today's Focus
@@ -431,267 +433,6 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
             </button>
           </div>
         </div>
-
-        <style jsx>{`
-          .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-          }
-
-          .enhanced-modal {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            max-width: 800px;
-            width: 90%;
-            max-height: 90vh;
-            overflow-y: auto;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-          }
-
-          .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 16px 24px;
-            border-bottom: 1px solid #e5e7eb;
-            position: sticky;
-            top: 0;
-            background: white;
-            z-index: 10;
-          }
-
-          .modal-header h2 {
-            margin: 0;
-            font-size: 18px;
-            font-weight: 600;
-          }
-
-          .close-button {
-            background: none;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            color: #9ca3af;
-          }
-
-          .close-button:hover {
-            color: #4b5563;
-          }
-
-          .task-form {
-            padding: 24px;
-            flex-grow: 1;
-            overflow-y: auto;
-          }
-
-          .form-group {
-            margin-bottom: 16px;
-          }
-
-          .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-          }
-
-          .form-group label {
-            display: block;
-            font-size: 14px;
-            font-weight: 500;
-            color: #374151;
-            margin-bottom: 6px;
-          }
-
-          .inline-icon {
-            display: inline;
-            vertical-align: middle;
-            margin-right: 4px;
-          }
-
-          .form-input, .form-textarea, .form-select {
-            width: 100%;
-            padding: 8px 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            font-size: 14px;
-            font-family: inherit;
-          }
-
-          .form-input:focus, .form-textarea:focus, .form-select:focus {
-            outline: none;
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); /* ring-blue-200 */
-          }
-
-          .form-textarea {
-            resize: vertical;
-          }
-          
-          .description-display {
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            padding: 8px 12px;
-            min-height: 60px;
-            cursor: pointer;
-            background: #f9fafb;
-          }
-          .description-display:hover {
-            background: #f3f4f6;
-            border-color: #a5b4fc;
-          }
-          .text-gray-500 {
-            color: #6b7280;
-          }
-
-          .checkbox-label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-            font-weight: normal;
-          }
-
-          .checkbox-label input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-          }
-
-          .modal-actions {
-            display: flex;
-            gap: 12px;
-            justify-content: flex-end;
-            margin-top: 24px;
-            padding: 16px 24px; /* Added padding for consistency */
-            border-top: 1px solid #e5e7eb;
-            position: sticky;
-            bottom: 0;
-            background: white;
-            z-index: 10;
-          }
-
-          .btn-primary, .btn-secondary, .btn-tertiary {
-            padding: 10px 20px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-          }
-
-          .btn-primary {
-            background: #3b82f6;
-            color: white;
-            border: none;
-          }
-
-          .btn-primary:hover {
-            background: #2563eb;
-          }
-
-          .btn-secondary {
-            background: white;
-            color: #4b5563;
-            border: 1px solid #d1d5db;
-          }
-
-          .btn-secondary:hover {
-            background: #f3f4f6;
-          }
-
-          .btn-tertiary {
-            background: none;
-            border: 1px solid transparent;
-            color: #3b82f6;
-          }
-
-          .btn-tertiary:hover {
-            background: #e0f2fe; /* blue-50 */
-            border-color: #bfdbfe; /* blue-200 */
-          }
-
-          .parent-selection-area {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 12px;
-            background: #f3f4f6;
-            border: 1px solid #e5e7eb;
-            border-radius: 6px;
-            margin-bottom: 8px;
-            font-size: 14px;
-          }
-
-          .parent-display {
-            flex-grow: 1;
-          }
-
-          .parent-actions {
-            display: flex;
-            gap: 8px;
-          }
-
-          .parent-search-dropdown {
-            position: relative; /* For positioning suggestions */
-            margin-top: 8px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            background: white;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-          }
-
-          .parent-search-dropdown .form-input {
-            border: none;
-            border-bottom: 1px solid #e5e7eb;
-            border-radius: 6px 6px 0 0;
-          }
-
-          .parent-suggestions {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            max-height: 300px;
-            overflow-y: auto;
-          }
-          .parent-suggestions li {
-            padding: 8px 12px;
-            cursor: pointer;
-            border-bottom: 1px solid #e5e7eb;
-          }
-          .parent-suggestions li:last-child {
-            border-bottom: none;
-          }
-          .parent-suggestions li:hover {
-            background: #f3f4f6;
-          }
-          .parent-suggestions li.highlighted {
-            background: #dbeafe;
-          }
-          .parent-path {
-            display: block;
-            font-size: 11px;
-            color: #6b7280;
-            margin-top: 2px;
-          }
-
-          .parent-search-actions {
-            display: flex;
-            justify-content: flex-end;
-            padding: 8px 12px;
-            border-top: 1px solid #e5e7eb;
-          }
-        `}</style>
       </div>
     </div>
   );
