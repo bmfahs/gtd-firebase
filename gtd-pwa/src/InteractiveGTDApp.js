@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { addDays, addMonths } from 'date-fns';
 import { db } from './firebase';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, deleteDoc, query, where, getDocs } from 'firebase/firestore';
-import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, ChevronDown, Inbox, ListTodo, FolderTree, Clock, Mic, Menu } from 'lucide-react';
+import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, ChevronDown, Inbox, ListTodo, FolderTree, Clock, Mic, Menu, ClipboardCheck } from 'lucide-react';
 import TaskDetailEditor from './EnhancedComponents';
 import VoiceInterface from './components/VoiceInterface';
 import KeyboardShortcuts, { useKeyboardShortcuts } from './components/KeyboardShortcuts';
@@ -30,7 +31,11 @@ const getOrCreateInboxId = async (userId) => {
       createdDate: serverTimestamp(),
       modifiedDate: serverTimestamp(),
       computedPriority: 0,
-      childCount: 0
+      childCount: 0,
+      lastReviewDate: serverTimestamp(),
+      nextReviewDate: addDays(new Date(), 14),
+      reviewEnabled: true,
+      reviewInterval: 14
     };
     const docRef = await addDoc(tasksCollectionRef, inboxTask);
     return docRef.id;
@@ -46,19 +51,33 @@ const InteractiveTaskItem = ({
   level = 0,
   allContexts,
   allTasks,
-  showHierarchy = true,
-  isSelected = false,
-  taskIndex = -1
+  showHierarchy,
+  selectedTaskId,
+  taskIndex,
+  onReview,
+  isReviewView
 }) => {
+  const [isHovered, setIsHovered] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(task.title);
-  const [isCollapsed, setIsCollapsed] = useState(false);
   const [showAddChild, setShowAddChild] = useState(false);
   const [newChildTitle, setNewChildTitle] = useState('');
-  const [isHovered, setIsHovered] = useState(false);
 
-  const hasChildren = task.children && task.children.length > 0;
   const isCompleted = task.status === 'done';
+  const hasChildren = task.children && task.children.length > 0;
+  const isSelected = task.id === selectedTaskId;
+
+  const elementRef = useRef(null);
+
+  useEffect(() => {
+    if (isSelected && elementRef.current) {
+      elementRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest'
+      });
+    }
+  }, [isSelected]);
 
   // Toggle completion
   const handleToggleComplete = async (e) => {
@@ -72,6 +91,58 @@ const InteractiveTaskItem = ({
         modifiedDate: serverTimestamp()
       };
       await updateDoc(taskRef, updates);
+
+      // Handle recurrence
+      if (newStatus === 'done' && task.isRecurring && task.recurrencePattern) {
+        let nextDueDate = new Date();
+        const baseDate = task.dueDate ? (task.dueDate.toDate ? task.dueDate.toDate() : new Date(task.dueDate)) : new Date();
+
+        switch (task.recurrencePattern) {
+          case 'daily':
+            nextDueDate = addDays(baseDate, 1);
+            break;
+          case 'weekly':
+            nextDueDate = addDays(baseDate, 7);
+            break;
+          case 'biweekly':
+            nextDueDate = addDays(baseDate, 14);
+            break;
+          case 'monthly':
+            nextDueDate = addMonths(baseDate, 1);
+            break;
+          default:
+            nextDueDate = addDays(baseDate, 7);
+        }
+
+        const newTask = {
+          title: task.title,
+          userId: userId,
+          parentId: task.parentId || null,
+          level: task.level || 0,
+          status: 'next_action',
+          importance: task.importance || 3,
+          urgency: task.urgency || 3,
+          context: task.context || null,
+          timeEstimate: task.timeEstimate || null,
+          energyLevel: task.energyLevel || 'medium',
+          isProject: task.isProject || false,
+          isRecurring: true,
+          recurrencePattern: task.recurrencePattern,
+          source: 'recurrence',
+          dueDate: nextDueDate,
+          createdDate: serverTimestamp(),
+          modifiedDate: serverTimestamp(),
+          lastReviewDate: serverTimestamp(),
+          nextReviewDate: addDays(new Date(), task.reviewInterval || 14),
+          reviewEnabled: task.reviewEnabled !== false,
+          reviewInterval: task.reviewInterval || 14,
+          computedPriority: 0,
+          childCount: 0
+        };
+
+        await addDoc(collection(db, 'tasks'), newTask);
+      }
+
       onUpdate?.();
     } catch (error) {
       console.error('Error toggling completion:', error);
@@ -120,7 +191,11 @@ const InteractiveTaskItem = ({
         createdDate: serverTimestamp(),
         modifiedDate: serverTimestamp(),
         computedPriority: 0,
-        childCount: 0
+        childCount: 0,
+        lastReviewDate: serverTimestamp(),
+        nextReviewDate: addDays(new Date(), 14),
+        reviewEnabled: true,
+        reviewInterval: 14
       };
 
       await addDoc(collection(db, 'tasks'), newTask);
@@ -194,6 +269,7 @@ const InteractiveTaskItem = ({
   return (
     <>
       <div
+        ref={elementRef}
         className="task-item-container"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -299,6 +375,18 @@ const InteractiveTaskItem = ({
               >
                 <Trash2 size={14} />
               </button>
+              {isReviewView && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReview(task);
+                  }}
+                  className="action-btn"
+                  title="Mark Reviewed"
+                >
+                  <ClipboardCheck size={14} />
+                </button>
+              )}
             </div>
           )}
 
@@ -347,7 +435,7 @@ const InteractiveTaskItem = ({
                 allContexts={allContexts}
                 allTasks={allTasks}
                 showHierarchy={showHierarchy}
-                isSelected={false}
+                selectedTaskId={selectedTaskId}
                 taskIndex={-1}
               />
             ))}
@@ -391,7 +479,11 @@ const QuickAddTask = ({ userId, onAdd, parentId = null, level = 0, allContexts, 
         createdDate: serverTimestamp(),
         modifiedDate: serverTimestamp(),
         computedPriority: 0,
-        childCount: 0
+        childCount: 0,
+        lastReviewDate: serverTimestamp(),
+        nextReviewDate: addDays(new Date(), 14),
+        reviewEnabled: true,
+        reviewInterval: 14
       };
 
       await addDoc(collection(db, 'tasks'), newTask);
@@ -501,6 +593,18 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
     handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Handle Android Shortcuts
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('action') === 'quick_add') {
+      setCurrentView('inbox');
+      setQuickAddAutoFocus(true);
+      // Clean up URL to avoid re-triggering on refresh
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
   const getUniqueContexts = (taskList) => {
     const contexts = new Set();
     const extractContexts = (tasks) => {
@@ -557,6 +661,17 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
             return dateB - dateA;
           })
           .slice(0, 50);
+
+      case 'review':
+        const allForReview = flattenTasks(tasks);
+        const now = new Date();
+        return allForReview
+          .filter(t => t.reviewEnabled !== false && t.status !== 'done' && (!t.nextReviewDate || (t.nextReviewDate.toDate ? t.nextReviewDate.toDate() : new Date(t.nextReviewDate)) <= now))
+          .sort((a, b) => {
+            const dateA = a.nextReviewDate ? (a.nextReviewDate.toDate ? a.nextReviewDate.toDate() : new Date(a.nextReviewDate)) : new Date(0);
+            const dateB = b.nextReviewDate ? (b.nextReviewDate.toDate ? b.nextReviewDate.toDate() : new Date(b.nextReviewDate)) : new Date(0);
+            return dateA - dateB;
+          });
 
       case 'alltasks':
       default:
@@ -615,6 +730,22 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
 
   const showHierarchy = currentView === 'alltasks' || currentView === 'inbox';
 
+  // Handle marking task as reviewed
+  const handleMarkReviewed = async (task) => {
+    try {
+      const taskRef = doc(db, 'tasks', task.id);
+      await updateDoc(taskRef, {
+        lastReviewDate: serverTimestamp(),
+        nextReviewDate: addDays(new Date(), task.reviewInterval || 14),
+        modifiedDate: serverTimestamp()
+      });
+      onUpdate?.();
+    } catch (error) {
+      console.error('Error marking reviewed:', error);
+      alert('Failed to mark as reviewed');
+    }
+  };
+
   // Handle task updates from voice
   const handleTaskUpdate = async (update) => {
     console.log('Received task update:', update);
@@ -639,6 +770,10 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
             userId: user.uid,
             createdDate: serverTimestamp(),
             modifiedDate: serverTimestamp(),
+            lastReviewDate: serverTimestamp(),
+            nextReviewDate: addDays(new Date(), 14),
+            reviewEnabled: true,
+            reviewInterval: 14,
           };
           await addDoc(collection(db, 'tasks'), newTaskData);
           break;
@@ -884,6 +1019,13 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
               <Clock size={18} />
               <span>Recent</span>
             </button>
+            <button
+              className={`nav-item ${currentView === 'review' ? 'active' : ''}`}
+              onClick={() => setCurrentView('review')}
+            >
+              <ClipboardCheck size={18} />
+              <span>Review</span>
+            </button>
           </nav>
         </div>
       </div>
@@ -900,6 +1042,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
             {currentView === 'todo' && 'To Do'}
             {currentView === 'alltasks' && 'All Tasks'}
             {currentView === 'recent' && 'Recent'}
+            {currentView === 'review' && 'Review'}
           </h1>
           <div className="header-actions">
             <button
@@ -1003,8 +1146,10 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
                 allContexts={allContexts}
                 allTasks={tasks}
                 showHierarchy={showHierarchy}
-                isSelected={index === selectedTaskIndex}
+                selectedTaskId={selectedTaskIndex !== -1 && flatFilteredTasks[selectedTaskIndex] ? flatFilteredTasks[selectedTaskIndex].id : null}
                 taskIndex={index}
+                onReview={handleMarkReviewed}
+                isReviewView={currentView === 'review'}
               />
             ))
           )}

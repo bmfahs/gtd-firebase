@@ -1,4 +1,5 @@
 import React, { useEffect, useCallback } from 'react';
+import './KeyboardShortcuts.css';
 
 const shortcuts = [
   { keys: ['j'], description: 'Move selection down' },
@@ -25,7 +26,7 @@ const shortcuts = [
   { keys: ['u', '1-5'], description: 'Set urgency (e.g., u 4)' },
 ];
 
-import './KeyboardShortcuts.css';
+
 
 const KeyboardShortcuts = ({ isOpen, onClose }) => {
   if (!isOpen) return null;

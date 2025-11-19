@@ -68,10 +68,22 @@ function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
       if (user) {
+        const allowedEmail = process.env.REACT_APP_ALLOWED_EMAIL;
+        if (allowedEmail && user.email !== allowedEmail) {
+          console.warn(`Access denied for user: ${user.email}`);
+          signOut(auth);
+          setError(`Access Denied: You are not authorized to use this application. Allowed: ${allowedEmail}`);
+          setUser(null);
+          setTasks([]);
+          setLoading(false);
+          return;
+        }
+
+        setUser(user);
         fetchTasks(user);
       } else {
+        setUser(null);
         setTasks([]);
         setLoading(false);
       }
@@ -86,12 +98,12 @@ function App() {
       const tasksCollectionRef = collection(db, 'tasks');
       const q = query(tasksCollectionRef, where("userId", "==", user.uid));
       const querySnapshot = await getDocs(q);
-      
+
       const fetchedTasks = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
-      
+
       const fullTaskTree = buildTaskTree(fetchedTasks);
       const filteredTree = filterCompletedTrees(fullTaskTree);
 
@@ -167,11 +179,11 @@ function App() {
           </div>
         </div>
       </nav>
-      
-      <InteractiveGTDApp 
-        user={user} 
-        tasks={tasks} 
-        onUpdate={() => fetchTasks(user)} 
+
+      <InteractiveGTDApp
+        user={user}
+        tasks={tasks}
+        onUpdate={() => fetchTasks(user)}
       />
     </div>
   );

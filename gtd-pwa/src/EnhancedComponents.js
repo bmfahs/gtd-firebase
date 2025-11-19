@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { serverTimestamp } from 'firebase/firestore';
 import {
-  Calendar, Clock, Zap, Star, Tag, FolderOpen, Folder
+  Calendar, Clock, Zap, Star, Tag, FolderOpen, Folder, Repeat, ClipboardCheck
 }
   from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeExternalLinks from 'rehype-external-links';
+import './EnhancedComponents.css';
 
 // Helper to get all descendants of a task (used for exclusion)
 const getAllDescendantIds = (node) => {
@@ -36,7 +37,7 @@ const getFlattentenedTasksForParentSelection = (tasksToFlatten, currentTaskId, e
   return flat;
 };
 
-import './EnhancedComponents.css';
+
 
 // Task Detail Editor Modal
 const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startWithParentSearchOpen = false }) => {
@@ -52,7 +53,12 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
     startDate: task.startDate ? formatDateForInput(task.startDate) : '',
     isProject: task.isProject || false,
     todayFocus: task.todayFocus || false,
-    parentId: task.parentId || null
+    parentId: task.parentId || null,
+    isRecurring: task.isRecurring || false,
+
+    recurrencePattern: task.recurrencePattern || 'weekly',
+    reviewEnabled: task.reviewEnabled !== false,
+    reviewInterval: task.reviewInterval || 14
   });
   const [parentSearch, setParentSearch] = useState('');
   const [showParentSearch, setShowParentSearch] = useState(false);
@@ -152,6 +158,11 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
       isProject: formData.isProject,
       todayFocus: formData.todayFocus,
       parentId: formData.parentId,
+      isRecurring: formData.isRecurring,
+
+      recurrencePattern: formData.isRecurring ? formData.recurrencePattern : null,
+      reviewEnabled: formData.reviewEnabled,
+      reviewInterval: formData.reviewEnabled ? (parseInt(formData.reviewInterval) || 14) : null,
       modifiedDate: serverTimestamp()
     };
 
@@ -421,6 +432,58 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
               <Star size={16} className="inline-icon" />
               Add to Today's Focus
             </label>
+          </div>
+
+          <div className="form-group">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={formData.isRecurring}
+                onChange={e => setFormData({ ...formData, isRecurring: e.target.checked })}
+              />
+              <Repeat size={16} className="inline-icon" />
+              Recurring Task
+            </label>
+            {formData.isRecurring && (
+              <select
+                value={formData.recurrencePattern}
+                onChange={e => setFormData({ ...formData, recurrencePattern: e.target.value })}
+                className="form-select"
+                style={{ marginTop: '8px', marginLeft: '24px', width: 'calc(100% - 24px)' }}
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Bi-weekly (Every 2 weeks)</option>
+                <option value="monthly">Monthly</option>
+              </select>
+            )}
+          </div>
+
+          <div className="form-group">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={formData.reviewEnabled}
+                onChange={e => setFormData({ ...formData, reviewEnabled: e.target.checked })}
+              />
+              <ClipboardCheck size={16} className="inline-icon" />
+              Enable Review
+            </label>
+            {formData.reviewEnabled && (
+              <div style={{ marginTop: '8px', marginLeft: '24px' }}>
+                <label style={{ fontSize: '0.9em', color: '#666' }}>
+                  Review every
+                  <input
+                    type="number"
+                    value={formData.reviewInterval}
+                    onChange={e => setFormData({ ...formData, reviewInterval: e.target.value })}
+                    min="1"
+                    style={{ width: '60px', margin: '0 8px', padding: '4px', borderRadius: '4px', border: '1px solid #ddd' }}
+                  />
+                  days
+                </label>
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}
