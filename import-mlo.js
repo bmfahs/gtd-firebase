@@ -10,19 +10,7 @@ require('dotenv').config();
 
 let serviceAccount;
 try {
-  if (process.env.SERVICE_ACCOUNT_KEY_JSON) {
-    serviceAccount = JSON.parse(process.env.SERVICE_ACCOUNT_KEY_JSON);
-  } else {
-    // Fallback for backward compatibility or local dev if file still exists
-    // But per requirements we want to rely on the env var.
-    // Let's try to load the file if env var is missing, but warn.
-    try {
-      serviceAccount = require('./serviceAccountKey.json');
-      console.warn('⚠️  Warning: Using serviceAccountKey.json file. Please migrate to SERVICE_ACCOUNT_KEY_JSON environment variable.');
-    } catch (e) {
-      throw new Error('SERVICE_ACCOUNT_KEY_JSON environment variable is not set.');
-    }
-  }
+  serviceAccount = require('./serviceAccountKey.json');
 } catch (error) {
   console.error('❌ Error loading service account credentials:', error.message);
   process.exit(1);
