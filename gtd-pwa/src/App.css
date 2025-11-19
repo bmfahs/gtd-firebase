@@ -142,3 +142,19 @@
   padding: 20px;
   text-align: center;
 }
+
+.install-button {
+  padding: 8px 16px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.install-button:hover {
+  background: #059669;
+}

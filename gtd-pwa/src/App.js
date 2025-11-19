@@ -65,8 +65,18 @@ function App() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
 
   useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Stash the event so it can be triggered later.
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         const allowedEmail = process.env.REACT_APP_ALLOWED_EMAIL;
@@ -89,8 +99,23 @@ function App() {
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
   }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    // Show the install prompt
+    deferredPrompt.prompt();
+    // Wait for the user to respond to the prompt
+    const { outcome } = await deferredPrompt.userChoice;
+    // Optionally, send analytics event with outcome of user choice
+    console.log(`User response to the install prompt: ${outcome}`);
+    // We've used the prompt, and can't use it again, discard it
+    setDeferredPrompt(null);
+  };
 
   const fetchTasks = async (user) => {
     setLoading(true);
@@ -172,6 +197,11 @@ function App() {
         <div className="nav-content">
           <h2>GTD System</h2>
           <div className="nav-actions">
+            {deferredPrompt && (
+              <button onClick={handleInstallClick} className="install-button">
+                Install App
+              </button>
+            )}
             <span className="user-email">{user.email}</span>
             <button onClick={handleSignOut} className="signout-button">
               Sign Out
