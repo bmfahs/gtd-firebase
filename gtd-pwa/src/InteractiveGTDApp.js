@@ -566,7 +566,7 @@ const QuickAddTask = ({ userId, onAdd, parentId = null, level = 0, allContexts, 
 // Main App Component with Interactive Features
 const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
   const [currentView, setCurrentView] = useState('inbox');
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('active');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedContext, setSelectedContext] = useState(null);
   const [showVoiceInterface, setShowVoiceInterface] = useState(false);
@@ -1090,6 +1090,17 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
             <div className="header-stats">
               <span>{filteredTasks.length} {filteredTasks.length === 1 ? 'task' : 'tasks'}</span>
             </div>
+            {currentView === 'alltasks' && (
+              <label className="show-completed-toggle" style={{ marginLeft: '16px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px', userSelect: 'none' }}>
+                <input
+                  type="checkbox"
+                  checked={filter === 'all'}
+                  onChange={(e) => setFilter(e.target.checked ? 'all' : 'active')}
+                  style={{ cursor: 'pointer' }}
+                />
+                Show Completed
+              </label>
+            )}
           </div>
         </div>
 
@@ -1104,29 +1115,31 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
             className="search-input"
           />
 
-          <div className="filter-buttons">
-            <button
-              onClick={() => setFilter('all')}
-              className={filter === 'all' ? 'active' : ''}
-              title="f then a"
-            >
-              All
-            </button>
-            <button
-              onClick={() => setFilter('active')}
-              className={filter === 'active' ? 'active' : ''}
-              title="f then o"
-            >
-              Active
-            </button>
-            <button
-              onClick={() => setFilter('completed')}
-              className={filter === 'completed' ? 'active' : ''}
-              title="f then c"
-            >
-              Completed
-            </button>
-          </div>
+          {currentView !== 'alltasks' && (
+            <div className="filter-buttons">
+              <button
+                onClick={() => setFilter('all')}
+                className={filter === 'all' ? 'active' : ''}
+                title="f then a"
+              >
+                All
+              </button>
+              <button
+                onClick={() => setFilter('active')}
+                className={filter === 'active' ? 'active' : ''}
+                title="f then o"
+              >
+                Active
+              </button>
+              <button
+                onClick={() => setFilter('completed')}
+                className={filter === 'completed' ? 'active' : ''}
+                title="f then c"
+              >
+                Completed
+              </button>
+            </div>
+          )}
 
           {allContexts.length > 0 && (
             <select

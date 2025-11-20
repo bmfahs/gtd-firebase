@@ -40,25 +40,7 @@ const buildTaskTree = (tasks) => {
   return tree;
 };
 
-// Filter out completed trees (keep your existing logic)
-const filterCompletedTrees = (tasks) => {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
 
-  const filterNode = (task) => {
-    if (task.completedDate && task.completedDate.toDate() < now) {
-      return null;
-    }
-
-    if (task.children && task.children.length > 0) {
-      task.children = task.children.map(filterNode).filter(child => child !== null);
-    }
-
-    return task;
-  };
-
-  return tasks.map(filterNode).filter(task => task !== null);
-};
 
 function App() {
   const [user, setUser] = useState(null);
@@ -130,9 +112,10 @@ function App() {
       }));
 
       const fullTaskTree = buildTaskTree(fetchedTasks);
-      const filteredTree = filterCompletedTrees(fullTaskTree);
+      // Don't filter completed trees here, let the UI handle it
+      // const filteredTree = filterCompletedTrees(fullTaskTree);
 
-      setTasks(filteredTree);
+      setTasks(fullTaskTree);
     } catch (err) {
       console.error("Error fetching tasks:", err);
       setError("Failed to load tasks. Check console for details.");
