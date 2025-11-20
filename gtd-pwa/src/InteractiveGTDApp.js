@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { addDays, addMonths } from 'date-fns';
 import { db } from './firebase';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, deleteDoc, query, where, getDocs } from 'firebase/firestore';
-import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, ChevronDown, Inbox, ListTodo, FolderTree, Clock, Mic, Menu, ClipboardCheck } from 'lucide-react';
+import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, ChevronDown, Inbox, ListTodo, FolderTree, Clock, Mic, Menu, ClipboardCheck, LayoutGrid } from 'lucide-react';
 import TaskDetailEditor from './EnhancedComponents';
 import VoiceInterface from './components/VoiceInterface';
 import KeyboardShortcuts, { useKeyboardShortcuts } from './components/KeyboardShortcuts';
@@ -673,6 +673,38 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
             return dateA - dateB;
           });
 
+      case 'organize':
+        // Recursive filter for organize view
+        const filterOrganize = (taskList) => {
+          return taskList.map(task => {
+            // Check if task matches organize criteria
+            const isUnorganized = task.status !== 'done' && (
+              // Incomplete Project with no subtasks
+              (task.isProject && (!task.children || task.children.length === 0)) ||
+              // Unorganized Task (default values or missing context)
+              (!task.isProject && (
+                // Default values check
+                ((task.importance === 3 || task.importance === undefined) &&
+                  (task.urgency === 3 || task.urgency === undefined) &&
+                  !task.timeEstimate &&
+                  (task.energyLevel === 'medium' || task.energyLevel === undefined)) ||
+                // Missing context check
+                !task.context
+              ))
+            );
+
+            // Process children
+            const filteredChildren = task.children ? filterOrganize(task.children) : [];
+
+            // Return task if it matches criteria OR has matching children
+            if (isUnorganized || filteredChildren.length > 0) {
+              return { ...task, children: filteredChildren };
+            }
+            return null;
+          }).filter(t => t !== null);
+        };
+        return filterOrganize(tasks);
+
       case 'alltasks':
       default:
         return tasks;
@@ -728,7 +760,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
     ? filteredTasks
     : flattenTasks(filteredTasks);
 
-  const showHierarchy = currentView === 'alltasks' || currentView === 'inbox';
+  const showHierarchy = currentView === 'alltasks' || currentView === 'inbox' || currentView === 'organize';
 
   // Handle marking task as reviewed
   const handleMarkReviewed = async (task) => {
@@ -1041,6 +1073,13 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
               <span>All Tasks</span>
             </button>
             <button
+              className={`nav-item ${currentView === 'organize' ? 'active' : ''}`}
+              onClick={() => setCurrentView('organize')}
+            >
+              <LayoutGrid size={18} />
+              <span>Organize</span>
+            </button>
+            <button
               className={`nav-item ${currentView === 'recent' ? 'active' : ''}`}
               onClick={() => setCurrentView('recent')}
             >
@@ -1068,7 +1107,9 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           <h1>
             {currentView === 'inbox' && 'Inbox'}
             {currentView === 'todo' && 'To Do'}
+            {currentView === 'todo' && 'To Do'}
             {currentView === 'alltasks' && 'All Tasks'}
+            {currentView === 'organize' && 'Organize'}
             {currentView === 'recent' && 'Recent'}
             {currentView === 'review' && 'Review'}
           </h1>
