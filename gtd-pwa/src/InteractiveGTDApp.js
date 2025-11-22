@@ -143,7 +143,7 @@ const InteractiveTaskItem = ({
         await addDoc(collection(db, 'tasks'), newTask);
       }
 
-      onUpdate?.();
+      onUpdate?.(true);
     } catch (error) {
       console.error('Error toggling completion:', error);
       alert('Failed to update task');
@@ -839,7 +839,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
         default:
           console.warn('Unknown task update type:', update.type);
       }
-      onUpdate();
+      onUpdate(true);
     } catch (error) {
       console.error('Error processing task update:', error);
     }
@@ -884,7 +884,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
             completedDate: newStatus === 'done' ? new Date() : null,
             modifiedDate: serverTimestamp()
           });
-          onUpdate();
+          onUpdate(true);
         }
         break;
 
@@ -892,7 +892,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
         if (task) {
           if (window.confirm(`Delete "${task.title}"?`)) {
             await deleteDoc(doc(db, 'tasks', task.id));
-            onUpdate();
+            onUpdate(true);
           }
         }
         break;
@@ -904,7 +904,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
             importance: value,
             modifiedDate: serverTimestamp()
           });
-          onUpdate();
+          onUpdate(true);
         }
         break;
 
@@ -915,7 +915,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
             urgency: value,
             modifiedDate: serverTimestamp()
           });
-          onUpdate();
+          onUpdate(true);
         }
         break;
 
@@ -979,7 +979,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
       await updateDoc(taskRef, updates);
       setEditingTask(null);
       setStartParentSearchOpen(false);
-      onUpdate?.();
+      onUpdate?.(true);
     } catch (error) {
       console.error('Error updating task from editor:', error);
       alert('Failed to save changes');
@@ -996,7 +996,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           <QuickAddTask
             userId={user.uid}
             onAdd={() => {
-              onUpdate();
+              onUpdate(true);
               // Optional: Show success message or close if possible (web apps can't close themselves usually)
               alert('Task added to Inbox!');
             }}

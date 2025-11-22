@@ -99,8 +99,8 @@ function App() {
     setDeferredPrompt(null);
   };
 
-  const fetchTasks = async (user) => {
-    setLoading(true);
+  const fetchTasks = async (user, silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const tasksCollectionRef = collection(db, 'tasks');
       const q = query(tasksCollectionRef, where("userId", "==", user.uid));
@@ -196,7 +196,7 @@ function App() {
       <InteractiveGTDApp
         user={user}
         tasks={tasks}
-        onUpdate={() => fetchTasks(user)}
+        onUpdate={(silent) => fetchTasks(user, silent)}
       />
     </div>
   );
