@@ -577,6 +577,9 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
   const [editingTask, setEditingTask] = useState(null);
   const [startParentSearchOpen, setStartParentSearchOpen] = useState(false);
 
+  const inboxTask = tasks.find(t => t.title === '<Inbox>' && !t.parentId);
+  const inboxId = inboxTask ? inboxTask.id : null;
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const searchInputRef = useRef(null);
@@ -995,6 +998,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           <h2 style={{ marginBottom: '20px', textAlign: 'center', color: '#1f2937' }}>Quick Add Task</h2>
           <QuickAddTask
             userId={user.uid}
+            parentId={inboxId}
             onAdd={() => {
               onUpdate(true);
               // Optional: Show success message or close if possible (web apps can't close themselves usually)
@@ -1200,6 +1204,7 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
         {(currentView === 'inbox' || currentView === 'alltasks') && (
           <QuickAddTask
             userId={user.uid}
+            parentId={currentView === 'inbox' ? inboxId : null}
             onAdd={onUpdate}
             allContexts={allContexts}
             autoFocus={quickAddAutoFocus}

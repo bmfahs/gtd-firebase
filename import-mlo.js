@@ -8,16 +8,19 @@ const { getFirestore } = require('firebase-admin/firestore');
 // Initialize Firebase Admin
 require('dotenv').config();
 
-let serviceAccount;
+let credential;
 try {
-  serviceAccount = require('./serviceAccountKey.json');
+  const serviceAccount = require('./serviceAccountKey.json');
+  console.log('✅ Found serviceAccountKey.json, using service account credentials.');
+  credential = admin.credential.cert(serviceAccount);
 } catch (error) {
-  console.error('❌ Error loading service account credentials:', error.message);
-  process.exit(1);
+  console.log('⚠️  serviceAccountKey.json not found, falling back to Application Default Credentials (ADC).');
+  console.log('   Make sure you have run: gcloud auth application-default login');
+  credential = admin.credential.applicationDefault();
 }
 
 const app = admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+  credential: credential
 });
 
 const databaseId = process.env.FIREBASE_DATABASE_ID || 'gtd-database';
