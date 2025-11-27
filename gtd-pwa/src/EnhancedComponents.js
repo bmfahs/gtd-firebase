@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { serverTimestamp } from 'firebase/firestore';
 import {
-  Calendar, Clock, Zap, Star, Tag, FolderOpen, Folder, Repeat, ClipboardCheck
+  Calendar, Clock, Zap, Star, Tag, FolderOpen, Folder, Repeat, ClipboardCheck, X
 }
   from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -25,11 +25,18 @@ const getAllDescendantIds = (node) => {
 const getFlattentenedTasksForParentSelection = (tasksToFlatten, currentTaskId, excludedDescendantIds, level = 0) => {
   let flat = [];
   tasksToFlatten.forEach(t => {
+    // Exclude completed tasks
+    if (t.status === 'done') return;
+
     if (t.id === currentTaskId || excludedDescendantIds.has(t.id)) {
       // Exclude the current task and its descendants
       return;
     }
     flat.push({ ...t, level });
+
+    // Do not recurse into <Inbox> children (items in Inbox shouldn't be parents)
+    if (t.title === '<Inbox>') return;
+
     if (t.children && t.children.length > 0) {
       flat = flat.concat(getFlattentenedTasksForParentSelection(t.children, currentTaskId, excludedDescendantIds, level + 1));
     }
@@ -380,6 +387,25 @@ const TaskDetailEditor = ({ task, onClose, onSave, allContexts, allTasks, startW
                   className="form-input"
                   autoFocus
                 />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setParentSearch('');
+                    setShowParentSearch(false);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    right: '8px',
+                    top: '8px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#9ca3af'
+                  }}
+                  title="Cancel"
+                >
+                  <X size={16} />
+                </button>
                 <ul className="parent-suggestions">
                   {filteredParents.map((p, index) => (
                     <li

@@ -16,7 +16,8 @@ function onOpen() {
   ui.createMenu('📧 GTD Email Processor')
     .addItem('▶️ Process Labeled Emails', 'processLabeledEmails')
     .addItem('📋 Check Gmail Labels', 'listLabels')
-    .addSeparator()
+    .addSeparator():q
+
     .addItem('⚙️ Setup Instructions', 'showSetupInstructions')
     .addItem('🧪 Test Connection', 'testSetup')
     .addToUi();
