@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { addDays, addMonths } from 'date-fns';
 import { db } from './firebase';
 import { doc, updateDoc, addDoc, collection, serverTimestamp, deleteDoc, query, where, getDocs } from 'firebase/firestore';
-import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, ChevronDown, Inbox, ListTodo, FolderTree, Clock, Mic, Menu, ClipboardCheck, LayoutGrid } from 'lucide-react';
+import { CheckCircle, Circle, Plus, Edit2, Trash2, GripVertical, ChevronRight, ChevronDown, Inbox, ListTodo, FolderTree, Clock, Mic, Menu, ClipboardCheck, LayoutGrid, LogOut, Download } from 'lucide-react';
 import TaskDetailEditor from './EnhancedComponents';
 import VoiceInterface from './components/VoiceInterface';
 import KeyboardShortcuts, { useKeyboardShortcuts } from './components/KeyboardShortcuts';
@@ -564,7 +564,7 @@ const QuickAddTask = ({ userId, onAdd, parentId = null, level = 0, allContexts, 
 };
 
 // Main App Component with Interactive Features
-const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
+const InteractiveGTDApp = ({ user, tasks, onUpdate, onSignOut, deferredPrompt, onInstallApp }) => {
   const [currentView, setCurrentView] = useState('inbox');
   const [filter, setFilter] = useState('active');
   const [searchTerm, setSearchTerm] = useState('');
@@ -991,6 +991,13 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
 
   const uniqueClassName = `gtd-app-${Date.now()}`;
 
+  const handleViewChange = (view) => {
+    setCurrentView(view);
+    if (window.innerWidth <= 1024) {
+      setIsSidebarOpen(false);
+    }
+  };
+
   if (currentView === 'quick_add_standalone') {
     return (
       <div className="app-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f3f4f6' }}>
@@ -1057,47 +1064,63 @@ const InteractiveGTDApp = ({ user, tasks, onUpdate }) => {
           <nav className="sidebar-nav">
             <button
               className={`nav-item ${currentView === 'inbox' ? 'active' : ''}`}
-              onClick={() => setCurrentView('inbox')}
+              onClick={() => handleViewChange('inbox')}
             >
               <Inbox size={18} />
               <span>Inbox</span>
             </button>
             <button
               className={`nav-item ${currentView === 'todo' ? 'active' : ''}`}
-              onClick={() => setCurrentView('todo')}
+              onClick={() => handleViewChange('todo')}
             >
               <ListTodo size={18} />
               <span>To Do</span>
             </button>
             <button
               className={`nav-item ${currentView === 'alltasks' ? 'active' : ''}`}
-              onClick={() => setCurrentView('alltasks')}
+              onClick={() => handleViewChange('alltasks')}
             >
               <FolderTree size={18} />
               <span>All Tasks</span>
             </button>
             <button
               className={`nav-item ${currentView === 'organize' ? 'active' : ''}`}
-              onClick={() => setCurrentView('organize')}
+              onClick={() => handleViewChange('organize')}
             >
               <LayoutGrid size={18} />
               <span>Organize</span>
             </button>
             <button
               className={`nav-item ${currentView === 'recent' ? 'active' : ''}`}
-              onClick={() => setCurrentView('recent')}
+              onClick={() => handleViewChange('recent')}
             >
               <Clock size={18} />
               <span>Recent</span>
             </button>
             <button
               className={`nav-item ${currentView === 'review' ? 'active' : ''}`}
-              onClick={() => setCurrentView('review')}
+              onClick={() => handleViewChange('review')}
             >
               <ClipboardCheck size={18} />
               <span>Review</span>
             </button>
           </nav>
+        </div>
+
+        <div className="sidebar-footer">
+          <div className="user-info">
+            <span className="user-email-sidebar">{user.email}</span>
+          </div>
+          {deferredPrompt && (
+            <button onClick={onInstallApp} className="sidebar-signout-btn" style={{ marginBottom: '8px', color: '#2563eb' }}>
+              <Download size={18} />
+              <span>Install App</span>
+            </button>
+          )}
+          <button onClick={onSignOut} className="sidebar-signout-btn">
+            <LogOut size={18} />
+            <span>Sign Out</span>
+          </button>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 .gtd-app {
   display: flex;
-  height: calc(100vh - 70px);
+  height: 100vh;
   background: #f3f4f6;
 }
 
@@ -10,6 +10,10 @@
   border-right: 1px solid #e5e7eb;
   padding: 20px 0;
   overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+  /* Height is already 100vh globally */
 }
 
 .sidebar-section {
@@ -383,7 +387,9 @@
   width: 100px;
 }
 
-.add-btn, .cancel-btn, .add-child-btn {
+.add-btn,
+.cancel-btn,
+.add-child-btn {
   padding: 6px 16px;
   border: none;
   border-radius: 4px;
@@ -392,12 +398,14 @@
   transition: all 0.2s;
 }
 
-.add-btn, .add-child-btn {
+.add-btn,
+.add-child-btn {
   background: #3b82f6;
   color: white;
 }
 
-.add-btn:hover, .add-child-btn:hover {
+.add-btn:hover,
+.add-child-btn:hover {
   background: #2563eb;
 }
 
@@ -450,6 +458,7 @@
   .gtd-app {
     flex-direction: column;
   }
+
   .gtd-app .gtd-sidebar {
     position: absolute;
     top: 0;
@@ -458,12 +467,15 @@
     transform: translateX(-100%);
     z-index: 100;
   }
+
   .gtd-app .gtd-sidebar.open {
     transform: translateX(0);
   }
+
   .gtd-app .gtd-main {
     width: 100%;
   }
+
   .gtd-app .sidebar-toggle {
     display: block;
     background: none;
@@ -471,7 +483,55 @@
     color: #4b5563;
     cursor: pointer;
   }
+
   .gtd-app .gtd-filters {
     flex-direction: column;
   }
+}
+
+/* Mobile Header Optimization */
+@media (max-width: 768px) {
+  .desktop-user-actions {
+    display: none;
+  }
+}
+
+.desktop-user-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Sidebar Footer */
+.sidebar-footer {
+  padding: 16px;
+  border-top: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+}
+
+.user-info {
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: #4b5563;
+  word-break: break-all;
+}
+
+.sidebar-signout-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: white;
+  color: #ef4444;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.sidebar-signout-btn:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
 }

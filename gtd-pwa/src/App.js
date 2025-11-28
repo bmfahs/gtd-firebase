@@ -176,27 +176,15 @@ function App() {
 
   return (
     <div className="App">
-      <nav className="top-nav">
-        <div className="nav-content">
-          <h2>GTD System</h2>
-          <div className="nav-actions">
-            {deferredPrompt && (
-              <button onClick={handleInstallClick} className="install-button">
-                Install App
-              </button>
-            )}
-            <span className="user-email">{user.email}</span>
-            <button onClick={handleSignOut} className="signout-button">
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </nav>
+      {/* Top nav removed for full-screen experience */}
 
       <InteractiveGTDApp
         user={user}
         tasks={tasks}
         onUpdate={(silent) => fetchTasks(user, silent)}
+        onSignOut={handleSignOut}
+        deferredPrompt={deferredPrompt}
+        onInstallApp={handleInstallClick}
       />
     </div>
   );

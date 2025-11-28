@@ -32,6 +32,7 @@
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -61,8 +62,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .login-container {
@@ -87,55 +93,7 @@
   background: #357ae8;
 }
 
-.top-nav {
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
-  padding: 16px 0;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.nav-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.nav-content h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  color: #1f2937;
-}
-
-.nav-actions {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.user-email {
-  color: #6b7280;
-  font-size: 14px;
-}
-
-.signout-button {
-  padding: 8px 16px;
-  background: #ef4444;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.signout-button:hover {
-  background: #dc2626;
-}
+/* Top nav styles removed */
 
 .error-message {
   color: #dc2626;
